@@ -8,11 +8,17 @@ TradeUp: a personal paper-trading terminal for NSE equities. Core loop: **signal
 
 ## Current state (Phase 1, started 2026-10-22)
 
-Working scaffold, verified end-to-end:
+Working end-to-end with real signals, verified:
 
-- `backend/` — FastAPI (`uvicorn app.main:app --reload --port 8000` from `backend/`). Mock signal source (3 fake signals), `POST /api/orders` creates a paper trade with an **event timeline**, `GET /api/journal` returns trades + events. All in-memory.
+- `backend/` — FastAPI (`uvicorn app.main:app --reload --port 8000` from `backend/`).
+  Signals: real SEPA engine via `signals/adapter.py` when `../SEPA-terminal` exists
+  (else mock fallback). Journal: CSV (`data/journal/trades.csv` + `events.csv`),
+  event-sourced, atomic writes. PaperBroker with the proven fill rules.
+  Endpoints: `/api/health`, `/api/candidates`, `POST /api/orders`,
+  `POST /api/orders/{id}/cancel`, `/api/journal`, `POST /api/signals/refresh`,
+  `POST /api/signals/run-daily-job`. Daily scheduler thread (17:30 default).
 - `frontend/` — Vite + React + TypeScript (strict) + **MUI**, Groww-style green accent, mobile-first (bottom nav), 3 pages: Candidates (cards with plain-English "why") → Trade ticket → Journal with event timelines. `npm run dev` proxies `/api` → :8000.
-- CI: none yet. Tests: none yet — this is the immediate priority.
+- CI: pytest + frontend build (`.github/workflows/ci.yml`). Tests: 45 pytest in `backend/tests/`.
 
 ## Non-negotiables
 
@@ -29,8 +35,24 @@ Working scaffold, verified end-to-end:
    `sepa/broker.py`, `store/{base,memory}.py`, `signals/mock.py`, thin `main.py` app factory);
    33 pytest tests (`backend/tests/`: fills, FSM, API contract); CI in `.github/workflows/ci.yml`
    (pytest + frontend build). Note: frontend types live in `src/api.ts`, not `src/types.ts`.
-2. Replace in-memory stores with `csv_store.py` implementing the `Store` interface (atomic writes: temp file + rename).
-3. `signals/adapter.py`: import the SEPA engine as a library and expose `get_candidates() -> list[Signal]`. Decide with the owner how to point it at a price store (initially Yahoo-only download, no API key).
+2. ~~CSV store~~ **Done (2026-10-22):** `store/csv_store.py` implements `Store`
+   (trades.csv snapshot + append-only events.csv, atomic write-temp-then-rename,
+   replay on load). 45 tests. Also done in the same session:
+   - `signals/adapter.py` — `SepaSignalSource` imports the real SEPA engine from
+     `SEPA_ROOT` (default `../SEPA-terminal`, see `app/config.py`), runs
+     `scan.run_all` → `attach_cross` → `screener.screen`, maps Strong Buy / Buy /
+     Watch rows to `Signal`. Reads SEPA's own price store (full NSE history, warm
+     cache — no first-time download). `/api/candidates` serves the last snapshot
+     and auto-kicks a background scan when empty; `POST /api/signals/refresh`;
+     `POST /api/signals/run-daily-job` (Yahoo incremental update for NIFTY 500 +
+     scan, synchronous/slow). Mock fallback when SEPA absent (CI).
+   - `jobs/scheduler.py` — daily job after `TRADEUP_SCAN_TIME` (default 17:30).
+   - `feed/dhan.py` — stub only; token must go in backend/.env when built.
+   - Engine defaults already filter to current NIFTY 500 (`params.trade_universe`).
+3. ~~Signals adapter~~ **Done — see item 2.** Next candidates:
+   - Live paper fills: the broker has `on_quotes` but nothing calls it yet — needs
+     an intraday price feed (Phase 2 Dhan WS, or a periodic Yahoo quote poll).
+   - UI: show signal source/scan status (from `/api/health`), manual refresh button.
 4. UI iteration on the three pages (owner is not a frontend expert — keep components simple, prefer MUI defaults).
 5. Phase 2: SQLite swap, auth design, PWA/responsive pass.
 

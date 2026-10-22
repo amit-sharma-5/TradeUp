@@ -19,9 +19,13 @@ def broker(store):
 
 
 @pytest.fixture
-def client():
-    # Fresh app per test so orders/journal state never leaks between tests.
-    return TestClient(create_app())
+def client(tmp_path, monkeypatch):
+    # Fresh app per test; journal goes to a temp dir, no background threads,
+    # and the SEPA engine is "absent" so the mock signal source is used.
+    import app.config as cfg
+    monkeypatch.setattr(cfg, "SEPA_ROOT", tmp_path / "no-sepa")
+    monkeypatch.setattr(cfg, "JOURNAL_DIR", tmp_path / "journal")
+    return TestClient(create_app(start_background=False, journal_dir=tmp_path / "journal"))
 
 
 @pytest.fixture

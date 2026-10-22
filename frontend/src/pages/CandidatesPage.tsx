@@ -62,6 +62,7 @@ export default function CandidatesPage({ tick }: { tick: number }) {
       })}
       {!signals.length && <Typography sx={{ mt: 6, textAlign: "center" }} color="text.secondary">
         No candidates today — doing nothing is a valid decision.
+        <br />First launch? The engine scan runs in the background; this page refreshes automatically.
       </Typography>}
     </Container>
   );
