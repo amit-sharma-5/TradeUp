@@ -82,10 +82,13 @@ export const api = {
     post<{ trade_id: string; status: string }>("/api/orders", o),
   cancelOrder: (id: string) => post<{ trade_id: string; status: string }>(`/api/orders/${id}/cancel`),
   chart: (symbol: string) => get<ChartData>(`/api/chart/${symbol}`),
+  symbols: () => get<StockSymbol[]>("/api/symbols"),
   runBacktest: (p: { start?: string; stop_pct?: number; chase_pct?: number; max_pos?: number; grade?: string }) =>
     post<{ started: boolean; running: boolean; status: string }>("/api/backtest", p),
   backtestStatus: () => get<BacktestStatus>("/api/backtest"),
 };
+
+export interface StockSymbol { symbol: string; name: string; industry: string; }
 
 export interface Candle {
   date: string;

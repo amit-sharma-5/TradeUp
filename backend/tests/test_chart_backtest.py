@@ -69,3 +69,11 @@ def test_backtest_concurrent_run_is_refused(real_client):
         if not real_client.get("/api/backtest").json()["running"]:
             break
         time.sleep(1)
+
+def test_symbols_endpoint(real_client):
+    r = real_client.get("/api/symbols")
+    assert r.status_code == 200
+    syms = r.json()
+    assert len(syms) > 400                          # the NIFTY 500 member list
+    assert {"symbol", "name", "industry"} <= set(syms[0])
+    assert any(s["symbol"] == "HAL" for s in syms)

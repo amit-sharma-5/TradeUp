@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AppBar, Box, BottomNavigation, BottomNavigationAction, Typography, Toolbar } from "@mui/material";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import CandlestickChartIcon from "@mui/icons-material/CandlestickChart";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import CandidatesPage from "./pages/CandidatesPage";
 import JournalPage from "./pages/JournalPage";
@@ -11,7 +12,7 @@ import LoginPage from "./pages/LoginPage";
 import { api, UnauthorizedError } from "./api";
 
 export default function App() {
-  const [page, setPage] = useState<"candidates" | "journal" | "backtest">("candidates");
+  const [page, setPage] = useState<"candidates" | "journal" | "chart" | "backtest">("candidates");
   const [tick, setTick] = useState(0);
   const [locked, setLocked] = useState(false);
   const [chartSym, setChartSym] = useState<string | null>(null);
@@ -39,6 +40,7 @@ export default function App() {
 
       {page === "candidates" && <CandidatesPage tick={tick} onChart={setChartSym} />}
       {page === "journal" && <JournalPage tick={tick} onChart={setChartSym} />}
+      {page === "chart" && <ChartPage />}
       {page === "backtest" && <BacktestPage />}
 
       <BottomNavigation
@@ -48,6 +50,7 @@ export default function App() {
       >
         <BottomNavigationAction label="Candidates" value="candidates" icon={<TrendingUpIcon />} />
         <BottomNavigationAction label="Journal" value="journal" icon={<ReceiptLongIcon />} />
+        <BottomNavigationAction label="Chart" value="chart" icon={<CandlestickChartIcon />} />
         <BottomNavigationAction label="Backtest" value="backtest" icon={<QueryStatsIcon />} />
       </BottomNavigation>
     </Box>

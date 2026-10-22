@@ -1,29 +1,76 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Box, Chip, CircularProgress, Container, IconButton, Stack, Typography, Alert,
+  Box, Chip, CircularProgress, Container, IconButton, Stack, Typography, Alert, Autocomplete, TextField,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import SearchIcon from "@mui/icons-material/Search";
 import {
   createChart, CandlestickSeries, LineSeries, HistogramSeries,
   createSeriesMarkers, type IChartApi, ColorType, CrosshairMode,
 } from "lightweight-charts";
-import { api, ChartData } from "../api";
+import { api, ChartData, StockSymbol } from "../api";
 
 const fmt = (n: number | null | undefined, d = 2) =>
   n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d });
 
-/** Full-screen candlestick chart for one symbol: price + MAs + volume,
- *  pivot/stop guide lines and breakout markers — the numbers behind the "why". */
-export default function ChartPage({ symbol, onBack }: { symbol: string; onBack: () => void }) {
+/** Candlestick chart for one symbol: price + MAs + volume, pivot/stop guide
+ *  lines and breakout markers — the numbers behind the "why". With symbol=""
+ *  it starts in search mode so any NIFTY 500 stock can be looked up. */
+export default function ChartPage({ symbol, onBack }: { symbol?: string | null; onBack?: () => void }) {
+  const [current, setCurrent] = useState<string | null>(symbol ?? null);
   const ref = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<ChartData | null>(null);
   const [err, setErr] = useState("");
+  const [allSymbols, setAllSymbols] = useState<StockSymbol[] | null>(null);
 
   useEffect(() => {
+    if (current == null) api.symbols().then(setAllSymbols).catch((e) => setErr(String(e)));
+  }, [current == null]);
+
+  useEffect(() => {
+    if (!current) return;
     setData(null);
     setErr("");
-    api.chart(symbol).then(setData).catch((e) => setErr(String(e)));
-  }, [symbol]);
+    api.chart(current).then(setData).catch((e) => setErr(String(e)));
+  }, [current]);
+
+  const pick = (s: StockSymbol | null) => { if (s) setCurrent(s.symbol); };
+
+  if (!current) {
+    return (
+      <Container maxWidth="sm" sx={{ mt: 2 }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          {onBack && <IconButton onClick={onBack} aria-label="back"><ArrowBackIcon /></IconButton>}
+          <SearchIcon color="primary" />
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>Search a stock</Typography>
+        </Stack>
+        {err && <Alert severity="error" sx={{ mt: 2 }}>{err}</Alert>}
+        <Autocomplete
+          sx={{ mt: 3 }}
+          options={allSymbols ?? []}
+          loading={allSymbols == null}
+          onChange={(_, v) => pick(v)}
+          getOptionLabel={(s) => s.symbol}
+          renderOption={(props, s) => (
+            <li {...props} key={s.symbol}>
+              <Box>
+                <Typography variant="body1">{s.symbol}</Typography>
+                <Typography variant="caption" color="text.secondary">{s.name} · {s.industry}</Typography>
+              </Box>
+            </li>
+          )}
+          renderInput={(params) => <TextField {...params} label="Symbol or company name" autoFocus />}
+          filterOptions={(opts, { inputValue }) => {
+            const q = inputValue.trim().toLowerCase();
+            return opts.filter((s) => s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)).slice(0, 25);
+          }}
+        />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 3, textAlign: "center" }}>
+          Any of the 500 NIFTY members — not just today's candidates.
+        </Typography>
+      </Container>
+    );
+  }
 
   useEffect(() => {
     if (!data || !ref.current) return;
@@ -82,8 +129,13 @@ export default function ChartPage({ symbol, onBack }: { symbol: string; onBack: 
   return (
     <Container maxWidth="sm" sx={{ mt: 2 }}>
       <Stack direction="row" alignItems="center" spacing={1}>
-        <IconButton onClick={onBack} aria-label="back"><ArrowBackIcon /></IconButton>
-        <Typography variant="h6" sx={{ fontWeight: 700, flexGrow: 1 }}>{symbol}</Typography>
+        {onBack && <IconButton onClick={onBack} aria-label="back"><ArrowBackIcon /></IconButton>}
+        {!onBack && (
+          <IconButton onClick={() => setCurrent(null)} aria-label="search another stock">
+            <SearchIcon />
+          </IconButton>
+        )}
+        <Typography variant="h6" sx={{ fontWeight: 700, flexGrow: 1 }}>{current}</Typography>
         {data && <>
           <Chip size="small" label={`Stage ${data.stage}`} color={data.stage === 2 ? "success" : "default"} variant="outlined" />
           {data.rs != null && <Chip size="small" label={`RS ${fmt(data.rs, 0)}`} variant="outlined" />}

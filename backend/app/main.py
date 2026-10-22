@@ -16,6 +16,7 @@ from . import auth
 from .backtester import Backtester
 from .broker.paper import PaperBroker
 from .chartdata import build_chart
+from .symbols import get_symbols
 from .domain import Signal, TradeStatus
 from .jobs.notify import send as notify_send
 from .jobs.quote_poller import PriceCache, QuotePoller
@@ -157,6 +158,13 @@ def create_app(start_background: bool = True, journal_dir=None,
         except ValueError as e:
             raise HTTPException(409, str(e))
         return {"trade_id": trade.id, "status": trade.status.value}
+
+    @app.get("/api/symbols")
+    def symbols():
+        """NIFTY 500 members with names, for client-side stock search."""
+        if source_name != "sepa":
+            raise HTTPException(503, "stock search needs the SEPA price store")
+        return get_symbols()
 
     @app.get("/api/chart/{symbol}")
     def chart(symbol: str, days: int = 400):
