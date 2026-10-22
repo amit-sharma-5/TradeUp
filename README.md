@@ -12,16 +12,27 @@ Backend (Python 3.11+):
 
 ```bash
 cd backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 .venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
-Frontend (Node 18+):
+Frontend (Node 18+), second terminal:
 
 ```bash
 cd frontend
 npm install && npm run dev     # → http://127.0.0.1:5173 (proxies /api to :8000)
 ```
+
+Kill both later with `pkill -f "uvicorn app.main:app"; pkill -f vite`.
+
+**Signals:** if the sibling repo `../SEPA-terminal` exists, the app uses its real
+SEPA engine and price store (no first-time download — the store is already
+populated). Otherwise it falls back to 3 mock signals. `GET /api/health` shows
+which source is active. The first background scan starts when you open the
+Candidates page; it can take a minute when the engine cache is cold.
+
+**Tests / CI:** `cd backend && .venv/bin/pytest -q`; frontend build runs on
+push via `.github/workflows/ci.yml`.
 
 ## Roadmap
 
