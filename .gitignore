@@ -18,3 +18,4 @@ data/logs/
 .idea/
 .vscode/
 .DS_Store
+*.tsbuildinfo

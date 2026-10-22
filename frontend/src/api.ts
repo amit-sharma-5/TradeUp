@@ -34,24 +34,45 @@ export interface Trade {
   events: TradeEvent[];
 }
 
+export interface Health {
+  ok: boolean;
+  signal_source: "sepa" | "mock";
+  store: "csv" | "sqlite";
+  trades: number;
+  signals: { asof: string; status: string; refreshing: boolean; count: number };
+  scheduler: { last_run: string; scan_time: string; running: boolean };
+  quote_poller: { interval_s: number; last_poll: string; last_error: string };
+}
+
 const base = "";
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(base + path);
+  if (r.status === 401) throw new UnauthorizedError();
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
   return r.json();
 }
 
+export class UnauthorizedError extends Error {}
+
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  const r = await fetch(base + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (r.status === 401) throw new UnauthorizedError();
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? `HTTP ${r.status}`);
+  return r.json();
+}
+
 export const api = {
+  health: () => get<Health>("/api/health"),
   candidates: () => get<Signal[]>("/api/candidates"),
   journal: () => get<{ trades: Trade[] }>("/api/journal"),
-  placeOrder: async (o: { symbol: string; kind: string; qty: number; limit_price: number; stop: number }) => {
-    const r = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(o),
-    });
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? `HTTP ${r.status}`);
-    return r.json() as Promise<{ trade_id: string; status: string }>;
-  },
+  refreshSignals: () => post<{ started: boolean }>("/api/signals/refresh"),
+  login: (passphrase: string) => post<{ ok: boolean }>("/api/login", { passphrase }),
+  placeOrder: (o: { symbol: string; kind: string; qty: number; limit_price: number; stop: number }) =>
+    post<{ trade_id: string; status: string }>("/api/orders", o),
+  cancelOrder: (id: string) => post<{ trade_id: string; status: string }>(`/api/orders/${id}/cancel`),
 };

@@ -14,3 +14,6 @@ DATA_DIR = Path(os.getenv("TRADEUP_DATA_DIR", REPO_ROOT / "data"))
 JOURNAL_DIR = DATA_DIR / "journal"
 
 SEPA_ROOT = Path(os.getenv("SEPA_ROOT", REPO_ROOT.parent / "SEPA-terminal"))
+
+# Journal storage: "csv" (Phase 1 default) or "sqlite" (Phase 2, TRADEUP_STORE=sqlite)
+STORE_KIND = os.getenv("TRADEUP_STORE", "csv")

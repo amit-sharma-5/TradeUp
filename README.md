@@ -34,6 +34,19 @@ Candidates page; it can take a minute when the engine cache is cold.
 **Tests / CI:** `cd backend && .venv/bin/pytest -q`; frontend build runs on
 push via `.github/workflows/ci.yml`.
 
+**Optional settings** (environment or backend/.env, never committed):
+
+| Variable | Default | What it does |
+|---|---|---|
+| `SEPA_ROOT` | `../SEPA-terminal` | Where the signal engine + price store live |
+| `TRADEUP_STORE` | `csv` | `sqlite` swaps journal storage (same interface) |
+| `TRADEUP_PASSPHRASE` | *(unset)* | Setting it turns on login (HttpOnly cookie) |
+| `TRADEUP_SCAN_TIME` | `17:30` | Daily price update + scan time |
+| `TRADEUP_QUOTE_INTERVAL` | `15` | Seconds between quote polls for paper fills |
+
+**Live paper fills:** open paper orders are filled/cancelled/stopped-out
+automatically from polled Yahoo quotes while the backend runs.
+
 ## Roadmap
 
 1. **Phase 1 (now):** web MVP — Candidates · Ticket · Journal (event timeline), in-memory → CSV store, no auth, localhost.

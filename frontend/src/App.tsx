@@ -4,14 +4,24 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import CandidatesPage from "./pages/CandidatesPage";
 import JournalPage from "./pages/JournalPage";
+import LoginPage from "./pages/LoginPage";
+import { api, UnauthorizedError } from "./api";
 
 export default function App() {
   const [page, setPage] = useState<"candidates" | "journal">("candidates");
   const [tick, setTick] = useState(0);
+  const [locked, setLocked] = useState(false);
   useEffect(() => {
     const iv = setInterval(() => setTick((t) => t + 1), 5000); // Phase 1 polling; WS later
     return () => clearInterval(iv);
   }, []);
+  // The backend keeps /api/health open even when auth is on; a gated endpoint
+  // is what actually tells us whether to show the login screen.
+  useEffect(() => {
+    api.candidates().catch((e) => { if (e instanceof UnauthorizedError) setLocked(true); });
+  }, [tick]);
+
+  if (locked) return <LoginPage onDone={() => setLocked(false)} />;
 
   return (
     <Box sx={{ pb: 8 }}>

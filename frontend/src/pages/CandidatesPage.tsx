@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  Box, Card, CardContent, Chip, Container, Stack, Typography, Button, CircularProgress, Alert,
+  Box, Card, CardContent, Chip, Container, Stack, Typography, Button, CircularProgress, Alert, IconButton, Tooltip,
 } from "@mui/material";
-import { api, Signal } from "../api";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import { api, Signal, Health } from "../api";
 import TradePage from "./TradePage";
 
 const fmt = (n: number | null | undefined, d = 2) =>
@@ -12,10 +13,22 @@ const GROUPS = ["Strong Buy", "Buy", "Watch"];
 
 export default function CandidatesPage({ tick }: { tick: number }) {
   const [signals, setSignals] = useState<Signal[] | null>(null);
+  const [health, setHealth] = useState<Health | null>(null);
   const [err, setErr] = useState("");
   const [tradeSym, setTradeSym] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
-  useEffect(() => { api.candidates().then(setSignals).catch((e) => setErr(String(e))); }, [tick]);
+  useEffect(() => {
+    api.candidates().then(setSignals).catch((e) => setErr(String(e)));
+    api.health().then(setHealth).catch(() => {});
+  }, [tick, reload]);
+
+  const refresh = async () => {
+    try {
+      await api.refreshSignals();
+      setTimeout(() => setReload((r) => r + 1), 4000);  // pick up the new scan shortly
+    } catch { /* surfaced on the next poll */ }
+  };
 
   if (tradeSym) {
     const s = signals?.find((x) => x.symbol === tradeSym);
@@ -27,6 +40,27 @@ export default function CandidatesPage({ tick }: { tick: number }) {
 
   return (
     <Container maxWidth="sm" sx={{ mt: 2 }}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+        {health && (
+          <Tooltip title={health.signals?.status ?? ""}>
+            <Chip
+              size="small"
+              color={health.signal_source === "sepa" ? "success" : "warning"}
+              variant="outlined"
+              label={health.signal_source === "sepa"
+                ? `SEPA · scanned ${health.signals.asof || "…"}`
+                : "mock signals (no SEPA engine)"}
+            />
+          </Tooltip>
+        )}
+        {health?.signals?.refreshing && <CircularProgress size={16} />}
+        <Box flexGrow={1} />
+        <Tooltip title="Re-run the scan now">
+          <IconButton size="small" onClick={refresh} aria-label="refresh signals">
+            <RefreshIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
       {GROUPS.map((g) => {
         const rows = signals.filter((s) => s.category === g);
         if (!rows.length) return null;

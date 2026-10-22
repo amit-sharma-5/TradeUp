@@ -6,21 +6,32 @@ Thin API layer over the domain/broker/store/signals seams (docs/ARCHITECTURE.md
 §3). Storage is CSV (D3); signals come from the imported SEPA engine when its
 repo is present (SEPA_ROOT), otherwise the mock source keeps the app usable.
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from . import config
+from . import auth
 from .broker.paper import PaperBroker
 from .domain import Signal
+from .jobs.quote_poller import QuotePoller
 from .jobs.scheduler import Scheduler, run_daily_job
 from .signals.adapter import SepaSignalSource, SepaUnavailable
 from .signals.mock import MockSignalSource
 from .store.csv_store import CsvStore
+from .store.sqlite_store import SqliteStore
+
+
+def _make_store(journal_dir):
+    """TRADEUP_STORE=sqlite swaps the implementation; the interface is unchanged (D3)."""
+    if config.STORE_KIND == "sqlite":
+        return SqliteStore(config.DATA_DIR / "journal.db")
+    return CsvStore(journal_dir or config.JOURNAL_DIR)
 
 
 def create_app(start_background: bool = True, journal_dir=None) -> FastAPI:
-    store = CsvStore(journal_dir or config.JOURNAL_DIR)
+    store = _make_store(journal_dir)
     broker = PaperBroker(store)
 
     # Signals: the real SEPA engine when available, mock otherwise (CI, fresh clones).
@@ -31,10 +42,11 @@ def create_app(start_background: bool = True, journal_dir=None) -> FastAPI:
         signals = MockSignalSource()
         source_name = "mock"
 
-    app = FastAPI(title="TradeUp", version="0.2.0")
+    app = FastAPI(title="TradeUp", version="0.3.0")
     app.add_middleware(CORSMiddleware, allow_origins=["*"],
                        allow_methods=["*"], allow_headers=["*"])
     scheduler = Scheduler(signals) if source_name == "sepa" else None
+    poller = QuotePoller(broker, store) if source_name == "sepa" else None
 
     class OrderIn(BaseModel):
         symbol: str
@@ -43,12 +55,33 @@ def create_app(start_background: bool = True, journal_dir=None) -> FastAPI:
         limit_price: float
         stop: float
 
+    class LoginIn(BaseModel):
+        passphrase: str
+
+    @app.post("/api/login")
+    def login(body: LoginIn, response: Response):
+        auth.issue_cookie(response, body.passphrase)
+        return {"ok": True}
+
+    @app.middleware("http")
+    async def _auth_guard(request, call_next):
+        """Phase 2 auth: active only when TRADEUP_PASSPHRASE is set. /api/login and
+        /api/health stay open so the UI can tell the user what to do."""
+        path = request.url.path
+        if auth.enabled and path.startswith("/api") and path not in ("/api/login", "/api/health"):
+            try:
+                auth.verify(request)
+            except HTTPException as e:
+                return JSONResponse({"detail": e.detail}, status_code=e.status_code)
+        return await call_next(request)
+
     @app.get("/api/health")
     def health():
-        return {"ok": True, "signal_source": source_name,
+        return {"ok": True, "signal_source": source_name, "store": config.STORE_KIND,
                 "trades": len(store.list_trades()),
                 "signals": signals.status if source_name == "sepa" else {"status": "mock, 3 candidates"},
-                "scheduler": scheduler.status() if scheduler else {"running": False}}
+                "scheduler": scheduler.status() if scheduler else {"running": False},
+                "quote_poller": poller.status() if poller else {"running": False}}
 
     @app.get("/api/candidates")
     def candidates():
@@ -113,6 +146,8 @@ def create_app(start_background: bool = True, journal_dir=None) -> FastAPI:
 
     if start_background and scheduler:
         scheduler.start()
+    if start_background and poller:
+        poller.start()
 
     return app
 

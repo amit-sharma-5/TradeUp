@@ -49,12 +49,23 @@ Working end-to-end with real signals, verified:
    - `jobs/scheduler.py` — daily job after `TRADEUP_SCAN_TIME` (default 17:30).
    - `feed/dhan.py` — stub only; token must go in backend/.env when built.
    - Engine defaults already filter to current NIFTY 500 (`params.trade_universe`).
-3. ~~Signals adapter~~ **Done — see item 2.** Next candidates:
-   - Live paper fills: the broker has `on_quotes` but nothing calls it yet — needs
-     an intraday price feed (Phase 2 Dhan WS, or a periodic Yahoo quote poll).
-   - UI: show signal source/scan status (from `/api/health`), manual refresh button.
-4. UI iteration on the three pages (owner is not a frontend expert — keep components simple, prefer MUI defaults).
-5. Phase 2: SQLite swap, auth design, PWA/responsive pass.
+3. ~~Signals adapter~~ **Done — see item 2.**
+4. ~~Live paper fills~~ **Done (2026-10-22):** `jobs/quote_poller.py` polls Yahoo
+   1-min bars (`TRADEUP_QUOTE_INTERVAL`, default 15 s) for active-trade symbols
+   only and feeds `broker.on_quotes` — fills/cancels/stop-outs now happen
+   automatically. Seeded E2E test (`tests/test_e2e.py`) proves
+   order → fill → stop-out → journal with a restart.
+5. ~~Phase 2 storage + auth~~ **Done (2026-10-22):**
+   - `store/sqlite_store.py` behind the same `Store` interface;
+     `TRADEUP_STORE=sqlite` switches (CSV stays default; no auto-migration).
+   - `auth.py`: opt-in passphrase + HMAC-signed HttpOnly cookie; dormant until
+     `TRADEUP_PASSPHRASE` is set. `/api/login` + middleware; `/api/health` and
+     `/api/login` stay open. Frontend shows a login screen on 401.
+   - UI: Candidates header shows signal source + scan date, spinner while
+     rescanning, manual refresh button.
+6. Remaining Phase 2/3: PWA/responsive pass, notifications, Dhan WebSocket feed
+   (replaces the Yahoo poll; the fetch-function seam in quote_poller is the swap
+   point), SQLite auto-migration from CSV if the owner switches.
 
 ## Conventions
 
