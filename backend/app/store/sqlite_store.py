@@ -5,6 +5,7 @@ trade_events is append-only. Selected with TRADEUP_STORE=sqlite (CSV stays the
 default — it is inspectable and the Phase 1 decision). No auto-migration from
 CSV: point both at the same data only after the CSV journal is quiet.
 """
+import csv
 import sqlite3
 import threading
 from pathlib import Path
@@ -76,6 +77,49 @@ class SqliteStore(Store):
                 self._conn.execute("SELECT * FROM trades ORDER BY id")]
 
     # ── helpers ────────────────────────────────────────────────────────────
+    def import_from_csv(self, journal_dir: Path) -> int:
+        """One-time import of an existing CSV journal (TRADEUP_STORE=sqlite switch).
+        Only runs when the database is empty, so it can never duplicate data."""
+        journal_dir = Path(journal_dir)
+        if self._conn.execute("SELECT COUNT(*) c FROM trades").fetchone()["c"]:
+            return 0
+        trades_f, events_f = journal_dir / "trades.csv", journal_dir / "events.csv"
+        if not trades_f.exists():
+            return 0
+        with open(trades_f, newline="", encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                self._conn.execute(
+                    "INSERT INTO trades (id,symbol,status,qty,order_kind,trigger,"
+                    "entry_price,stop,pivot,exit_price,exit_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (row["id"], row["symbol"], row["status"], int(row["qty"]),
+                     row["order_kind"] or "BUY_STOP",
+                     float(row["trigger"]) if row["trigger"] else None,
+                     float(row["entry_price"]) if row["entry_price"] else None,
+                     float(row["stop"]) if row["stop"] else None,
+                     float(row["pivot"]) if row["pivot"] else None,
+                     float(row["exit_price"]) if row["exit_price"] else None,
+                     row["exit_reason"]))
+        n = 0
+        if events_f.exists():
+            with open(events_f, newline="", encoding="utf-8") as fh:
+                for row in csv.DictReader(fh):
+                    if row["trade_id"] not in {r["id"] for r in
+                                               self._conn.execute("SELECT id FROM trades")}:
+                        continue               # skip orphans, same as CsvStore
+                    self._conn.execute(
+                        "INSERT INTO trade_events (trade_id,ts,event,price,qty,reason) "
+                        "VALUES (?,?,?,?,?,?)",
+                        (row["trade_id"], row["ts"], row["event"],
+                         float(row["price"]) if row["price"] else None,
+                         int(row["qty"]) if row["qty"] else None, row["reason"]))
+                    n += 1
+        self._conn.commit()
+        self._events_on_disk = self._count_events()
+        print(f"sqlite: imported {self._count()} trade(s), {n} event(s) from {journal_dir}")
+        return n
+
+    def _count(self) -> int:
+        return self._conn.execute("SELECT COUNT(*) c FROM trades").fetchone()["c"]
     def _hydrate(self, row: sqlite3.Row) -> Trade:
         events = [TradeEvent(ts=r["ts"], event=r["event"], price=r["price"],
                              qty=r["qty"], reason=r["reason"])

@@ -63,9 +63,19 @@ Working end-to-end with real signals, verified:
      `/api/login` stay open. Frontend shows a login screen on 401.
    - UI: Candidates header shows signal source + scan date, spinner while
      rescanning, manual refresh button.
-6. Remaining Phase 2/3: PWA/responsive pass, notifications, Dhan WebSocket feed
-   (replaces the Yahoo poll; the fetch-function seam in quote_poller is the swap
-   point), SQLite auto-migration from CSV if the owner switches.
+6. ~~Remaining Phase 2/3~~ **Done (2026-10-22):**
+   - Live P&L: `PriceCache` (fed by the poller) + `/api/journal` returns
+     `last_price`/`unrealized_pnl(_pct)` for OPEN and `pnl(_pct)` for CLOSED;
+     Journal UI shows a P&L chip per trade + a realized-P&L summary chip.
+   - Notifications: `jobs/notify.py` — dormant Telegram notifier (env
+     `TRADEUP_TELEGRAM_TOKEN` + `TRADEUP_TELEGRAM_CHAT_ID`); poller sends a
+     plain-English line per fill/cancel/stop-out; failures never break fills.
+   - SQLite auto-import: switching to `TRADEUP_STORE=sqlite` imports the CSV
+     journal once (only if the DB is empty — can't duplicate).
+   - PWA: manifest + SVG icon + theme color; installable on mobile.
+7. Left for later: Dhan WebSocket feed (blocked on the owner's token; the
+   `fetch` seam in quote_poller is the swap point), richer PWA (offline/service
+   worker), trade-editing UI, golden signal snapshot test against SEPA.
 
 ## Conventions
 

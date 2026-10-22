@@ -24,9 +24,20 @@ export default function JournalPage({ tick }: { tick: number }) {
 
   const open = trades.filter((t) => t.status === "PLANNED" || t.status === "OPEN");
   const closed = trades.filter((t) => t.status === "CLOSED" || t.status === "CANCELLED");
+  const realized = closed.reduce((s, t) => s + (t.pnl ?? 0), 0);
 
   return (
     <Container maxWidth="sm" sx={{ mt: 2 }}>
+      {closed.length > 0 && (
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+          <Chip size="small" variant="outlined"
+                label={`Realized P&L ${realized >= 0 ? "+" : ""}₹${fmt(realized)}`}
+                color={realized >= 0 ? "success" : "error"} />
+          <Typography variant="caption" color="text.secondary">
+            across {closed.length} closed trade{closed.length > 1 ? "s" : ""}
+          </Typography>
+        </Stack>
+      )}
       {open.length > 0 && <>
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, ml: 1 }}>Open / planned</Typography>
         <Stack spacing={1.5} sx={{ mb: 3 }}>{open.map(tradeCard)}</Stack>
@@ -45,16 +56,24 @@ export default function JournalPage({ tick }: { tick: number }) {
 }
 
 function tradeCard(t: Trade) {
+  const pnl = t.status === "OPEN" ? t.unrealized_pnl : t.pnl;
+  const pnlPct = t.status === "OPEN" ? t.unrealized_pnl_pct : t.pnl_pct;
   return (
     <Card key={t.id} variant="outlined">
       <CardContent>
         <Stack direction="row" alignItems="center" spacing={1}>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, flexGrow: 1 }}>{t.symbol}</Typography>
+          {pnl != null && (
+            <Chip size="small" label={`${pnl >= 0 ? "+" : ""}₹${fmt(pnl)} (${fmt(pnlPct)}%)`}
+                  color={pnl >= 0 ? "success" : "error"} />
+          )}
           <Chip size="small" label={t.status} color={STATUS_COLOR[t.status] ?? "default"} />
         </Stack>
         <Stack direction="row" spacing={2} sx={{ mt: 0.5 }}>
           <Typography variant="body2">Qty {t.qty}</Typography>
           <Typography variant="body2">Entry ₹{fmt(t.entry_price)}</Typography>
+          {t.status === "OPEN" && t.last_price != null &&
+            <Typography variant="body2">Last ₹{fmt(t.last_price)}</Typography>}
           <Typography variant="body2">Stop ₹{fmt(t.stop)}</Typography>
           {t.exit_price != null && <Typography variant="body2">Exit ₹{fmt(t.exit_price)}</Typography>}
         </Stack>

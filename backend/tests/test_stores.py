@@ -112,3 +112,22 @@ def test_csv_events_file_is_append_only(tmp_path):
     assert after.startswith(before)                   # new rows appended, old bytes untouched
     rows = list(csv.DictReader(after.splitlines()))
     assert [r["event"] for r in rows] == ["order_placed", "filled"]
+
+def test_sqlite_imports_from_csv_journal_once(tmp_path):
+    csv_dir = tmp_path / "journal"
+    s = CsvStore(csv_dir)
+    t = _planned(s)
+    transition(t, TradeStatus.OPEN, "filled", price=5605.0, qty=10, ts="x")
+    t.entry_price = 5605.0
+    s.save_trade(t)
+
+    db = SqliteStore(tmp_path / "journal.db")
+    assert db.import_from_csv(csv_dir) == 2                  # 2 events
+    imported = db.get_trade("T0001")
+    assert imported.status is TradeStatus.OPEN
+    assert imported.entry_price == 5605.0
+    assert [e.event for e in imported.events] == ["order_placed", "filled"]
+
+    # A second import into a non-empty database must do nothing (no duplicates).
+    assert db.import_from_csv(csv_dir) == 0
+    assert len(db.get_trade("T0001").events) == 2

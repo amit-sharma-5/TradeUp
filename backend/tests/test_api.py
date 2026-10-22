@@ -80,3 +80,41 @@ def test_cancel_unknown_trade_is_404(client):
 
 def test_journal_is_empty_before_orders(client):
     assert client.get("/api/journal").json() == {"trades": []}
+
+def test_journal_pnl_fields(tmp_path, monkeypatch):
+    """OPEN trades get unrealized P&L from the poller's price cache;
+    CLOSED trades get realized P&L. Uses app.state to drive the broker
+    exactly as the quote poller would."""
+    import app.config as cfg
+    from app.jobs.quote_poller import PriceCache
+    from app.main import create_app
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr(cfg, "SEPA_ROOT", tmp_path / "no-sepa")   # mock signal source
+    cache = PriceCache()
+    c = TestClient(create_app(start_background=False, journal_dir=tmp_path / "j",
+                              price_cache=cache))
+
+    tid = c.post("/api/orders", json={
+        "symbol": "PERSISTENT", "kind": "LIMIT", "qty": 10,
+        "limit_price": 5700.0, "stop": 5210.0}).json()["trade_id"]
+    t = next(x for x in c.get("/api/journal").json()["trades"] if x["id"] == tid)
+    assert "unrealized_pnl" not in t                   # PLANNED: no P&L yet
+
+    app = c.app
+    app.state.prices.update({"PERSISTENT": 5600.0})
+    app.state.broker.on_quotes({"PERSISTENT": 5600.0})   # what the poller does
+    app.state.prices.update({"PERSISTENT": 5800.0})      # price moves in our favour
+
+    t = next(x for x in c.get("/api/journal").json()["trades"] if x["id"] == tid)
+    assert t["status"] == "OPEN"
+    assert t["last_price"] == 5800.0
+    assert t["unrealized_pnl"] == round((5800.0 - 5600.0) * 10, 2)
+    assert t["unrealized_pnl_pct"] == round((5800.0 / 5600.0 - 1) * 100, 2)
+
+    app.state.prices.update({"PERSISTENT": 5200.0})
+    app.state.broker.on_quotes({"PERSISTENT": 5200.0})   # stop-out
+    t = next(x for x in c.get("/api/journal").json()["trades"] if x["id"] == tid)
+    assert t["status"] == "CLOSED"
+    assert t["pnl"] == round((5200.0 - 5600.0) * 10, 2)
+    assert t["pnl_pct"] == round((5200.0 / 5600.0 - 1) * 100, 2)

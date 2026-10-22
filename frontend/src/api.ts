@@ -32,6 +32,12 @@ export interface Trade {
   exit_price: number | null;
   exit_reason: string;
   events: TradeEvent[];
+  // Derived by the journal endpoint when knowable:
+  last_price?: number;            // OPEN: poller's last known quote
+  unrealized_pnl?: number;        // OPEN: (last - entry) * qty
+  unrealized_pnl_pct?: number;
+  pnl?: number;                   // CLOSED: (exit - entry) * qty
+  pnl_pct?: number;
 }
 
 export interface Health {

@@ -20,6 +20,26 @@ from ..store.base import Store
 QUOTE_INTERVAL = int(os.getenv("TRADEUP_QUOTE_INTERVAL", "15"))
 
 
+class PriceCache:
+    """Last known LTP per symbol, updated by the QuotePoller.
+
+    The journal read model uses it for live P&L. It only ever holds what the
+    poller fetched, so it is a hint, not a guarantee (None before the first poll).
+    """
+
+    def __init__(self):
+        self._d: dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    def update(self, quotes: dict[str, float]):
+        with self._lock:
+            self._d.update(quotes)
+
+    def get(self, symbol: str) -> float | None:
+        with self._lock:
+            return self._d.get(symbol)
+
+
 def yahoo_quotes(symbols: list[str]) -> dict[str, float]:
     """symbol → last traded price from Yahoo 1-minute bars (f"{sym}.NS")."""
     import pandas as pd
@@ -44,11 +64,14 @@ def yahoo_quotes(symbols: list[str]) -> dict[str, float]:
 
 class QuotePoller:
     def __init__(self, broker: Broker, store: Store, fetch=yahoo_quotes,
-                 interval: int = QUOTE_INTERVAL):
+                 interval: int = QUOTE_INTERVAL, price_cache: PriceCache | None = None,
+                 notify=None):
         self._broker = broker
         self._store = store
         self._fetch = fetch
         self._interval = interval
+        self._cache = price_cache
+        self._notify = notify                  # callable(str) or None; called per fill event
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._last_ok: str = ""
@@ -60,7 +83,15 @@ class QuotePoller:
         if not symbols:
             return []                       # nothing to fill → no network call at all
         quotes = self._fetch(symbols)
+        if self._cache is not None:
+            self._cache.update(quotes)
         events = self._broker.on_quotes(quotes)
+        if self._notify:
+            for e in events:
+                try:
+                    self._notify(_event_text(e))
+                except Exception:
+                    traceback.print_exc()   # a broken webhook must never break fills
         self._last_ok = time.strftime("%Y-%m-%d %H:%M:%S")
         return events
 
@@ -83,3 +114,16 @@ class QuotePoller:
             except Exception:
                 self._last_error = traceback.format_exc(limit=1).strip()
                 traceback.print_exc()       # keep polling; next pass retries
+
+
+def _event_text(e: dict) -> str:
+    """Plain-English one-liner for a broker event dict (used by notifiers)."""
+    kind = e["event"]
+    sym, px = e.get("symbol", ""), e.get("price")
+    if kind == "filled":
+        return f"✅ {sym} paper order filled @ ₹{px:,.2f}"
+    if kind == "cancelled":
+        return f"🚫 {sym} order cancelled — {e.get('why', 'no fill')}"
+    if kind == "stopped_out":
+        return f"🛑 {sym} stopped out @ ₹{px:,.2f}"
+    return f"{sym}: {kind} @ {px}"

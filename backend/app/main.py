@@ -14,8 +14,9 @@ from pydantic import BaseModel
 from . import config
 from . import auth
 from .broker.paper import PaperBroker
-from .domain import Signal
-from .jobs.quote_poller import QuotePoller
+from .domain import Signal, TradeStatus
+from .jobs.notify import send as notify_send
+from .jobs.quote_poller import PriceCache, QuotePoller
 from .jobs.scheduler import Scheduler, run_daily_job
 from .signals.adapter import SepaSignalSource, SepaUnavailable
 from .signals.mock import MockSignalSource
@@ -24,13 +25,17 @@ from .store.sqlite_store import SqliteStore
 
 
 def _make_store(journal_dir):
-    """TRADEUP_STORE=sqlite swaps the implementation; the interface is unchanged (D3)."""
+    """TRADEUP_STORE=sqlite swaps the implementation; the interface is unchanged (D3).
+    A one-time CSV import happens when switching on an empty database."""
     if config.STORE_KIND == "sqlite":
-        return SqliteStore(config.DATA_DIR / "journal.db")
+        s = SqliteStore(config.DATA_DIR / "journal.db")
+        s.import_from_csv(journal_dir or config.JOURNAL_DIR)
+        return s
     return CsvStore(journal_dir or config.JOURNAL_DIR)
 
 
-def create_app(start_background: bool = True, journal_dir=None) -> FastAPI:
+def create_app(start_background: bool = True, journal_dir=None,
+               price_cache: "PriceCache | None" = None) -> FastAPI:
     store = _make_store(journal_dir)
     broker = PaperBroker(store)
 
@@ -46,7 +51,10 @@ def create_app(start_background: bool = True, journal_dir=None) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=["*"],
                        allow_methods=["*"], allow_headers=["*"])
     scheduler = Scheduler(signals) if source_name == "sepa" else None
-    poller = QuotePoller(broker, store) if source_name == "sepa" else None
+    prices = price_cache or PriceCache()
+    poller = (QuotePoller(broker, store, price_cache=prices, notify=notify_send)
+              if source_name == "sepa" else None)
+    app.state.store, app.state.broker, app.state.prices = store, broker, prices
 
     class OrderIn(BaseModel):
         symbol: str
@@ -142,7 +150,23 @@ def create_app(start_background: bool = True, journal_dir=None) -> FastAPI:
 
     @app.get("/api/journal")
     def journal():
-        return {"trades": [t.to_dict() for t in store.list_trades()]}
+        """The story of every trade, plus derived P&L where it is knowable:
+        unrealized for OPEN trades (from the poller's last known price) and
+        realized for CLOSED ones."""
+        out = []
+        for t in store.list_trades():
+            d = t.to_dict()
+            if t.status is TradeStatus.OPEN and t.entry_price is not None:
+                last = prices.get(t.symbol)
+                if last is not None:
+                    d["last_price"] = last
+                    d["unrealized_pnl"] = round((last - t.entry_price) * t.qty, 2)
+                    d["unrealized_pnl_pct"] = round((last / t.entry_price - 1) * 100, 2)
+            if t.status is TradeStatus.CLOSED and t.entry_price and t.exit_price:
+                d["pnl"] = round((t.exit_price - t.entry_price) * t.qty, 2)
+                d["pnl_pct"] = round((t.exit_price / t.entry_price - 1) * 100, 2)
+            out.append(d)
+        return {"trades": out}
 
     if start_background and scheduler:
         scheduler.start()

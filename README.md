@@ -43,9 +43,12 @@ push via `.github/workflows/ci.yml`.
 | `TRADEUP_PASSPHRASE` | *(unset)* | Setting it turns on login (HttpOnly cookie) |
 | `TRADEUP_SCAN_TIME` | `17:30` | Daily price update + scan time |
 | `TRADEUP_QUOTE_INTERVAL` | `15` | Seconds between quote polls for paper fills |
+| `TRADEUP_TELEGRAM_TOKEN` | *(unset)* | With `TRADEUP_TELEGRAM_CHAT_ID`: Telegram alerts on fills/stop-outs |
 
 **Live paper fills:** open paper orders are filled/cancelled/stopped-out
-automatically from polled Yahoo quotes while the backend runs.
+automatically from polled Yahoo quotes while the backend runs. The Journal
+shows live unrealized P&L for open trades and realized P&L per closed trade.
+Installable as an app (manifest + icon are served from `frontend/public/`).
 
 ## Roadmap
 
