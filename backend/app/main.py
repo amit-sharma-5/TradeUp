@@ -13,7 +13,9 @@ from pydantic import BaseModel
 
 from . import config
 from . import auth
+from .backtester import Backtester
 from .broker.paper import PaperBroker
+from .chartdata import build_chart
 from .domain import Signal, TradeStatus
 from .jobs.notify import send as notify_send
 from .jobs.quote_poller import PriceCache, QuotePoller
@@ -51,9 +53,10 @@ def create_app(start_background: bool = True, journal_dir=None,
     app.add_middleware(CORSMiddleware, allow_origins=["*"],
                        allow_methods=["*"], allow_headers=["*"])
     scheduler = Scheduler(signals) if source_name == "sepa" else None
-    prices = price_cache or PriceCache()
+    prices = PriceCache()
     poller = (QuotePoller(broker, store, price_cache=prices, notify=notify_send)
               if source_name == "sepa" else None)
+    backtester = Backtester()
     app.state.store, app.state.broker, app.state.prices = store, broker, prices
 
     class OrderIn(BaseModel):
@@ -65,6 +68,13 @@ def create_app(start_background: bool = True, journal_dir=None,
 
     class LoginIn(BaseModel):
         passphrase: str
+
+    class BacktestIn(BaseModel):
+        start: str = "2012-01-01"
+        stop_pct: float | None = None
+        chase_pct: float | None = None
+        max_pos: int = 8
+        grade: str | None = None
 
     @app.post("/api/login")
     def login(body: LoginIn, response: Response):
@@ -147,6 +157,31 @@ def create_app(start_background: bool = True, journal_dir=None,
         except ValueError as e:
             raise HTTPException(409, str(e))
         return {"trade_id": trade.id, "status": trade.status.value}
+
+    @app.get("/api/chart/{symbol}")
+    def chart(symbol: str, days: int = 400):
+        """OHLCV + MAs + pivot/stop + breakout marks for the chart page."""
+        if source_name != "sepa":
+            raise HTTPException(503, "charts need the SEPA price store (mock source is active)")
+        try:
+            return build_chart(symbol, days)
+        except FileNotFoundError as e:
+            raise HTTPException(404, f"no price data for {symbol}")
+
+    @app.post("/api/backtest")
+    def run_backtest(body: BacktestIn):
+        """Starts the SEPA backtest in the background (seconds warm, minutes cold).
+        Poll GET /api/backtest for the result."""
+        if source_name != "sepa":
+            raise HTTPException(503, "backtest needs the SEPA engine (mock source is active)")
+        started = backtester.run_async(start=body.start, stop_pct=body.stop_pct,
+                                       chase_pct=body.chase_pct,
+                                       max_pos=body.max_pos, grade=body.grade or None)
+        return {"started": started, **backtester.status}
+
+    @app.get("/api/backtest")
+    def backtest_result():
+        return {**backtester.status, "result": backtester.result()}
 
     @app.get("/api/journal")
     def journal():

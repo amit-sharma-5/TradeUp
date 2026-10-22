@@ -2,15 +2,19 @@ import { useEffect, useState } from "react";
 import { AppBar, Box, BottomNavigation, BottomNavigationAction, Typography, Toolbar } from "@mui/material";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import CandidatesPage from "./pages/CandidatesPage";
 import JournalPage from "./pages/JournalPage";
+import ChartPage from "./pages/ChartPage";
+import BacktestPage from "./pages/BacktestPage";
 import LoginPage from "./pages/LoginPage";
 import { api, UnauthorizedError } from "./api";
 
 export default function App() {
-  const [page, setPage] = useState<"candidates" | "journal">("candidates");
+  const [page, setPage] = useState<"candidates" | "journal" | "backtest">("candidates");
   const [tick, setTick] = useState(0);
   const [locked, setLocked] = useState(false);
+  const [chartSym, setChartSym] = useState<string | null>(null);
   useEffect(() => {
     const iv = setInterval(() => setTick((t) => t + 1), 5000); // Phase 1 polling; WS later
     return () => clearInterval(iv);
@@ -22,6 +26,7 @@ export default function App() {
   }, [tick]);
 
   if (locked) return <LoginPage onDone={() => setLocked(false)} />;
+  if (chartSym) return <ChartPage symbol={chartSym} onBack={() => setChartSym(null)} />;
 
   return (
     <Box sx={{ pb: 8 }}>
@@ -32,8 +37,9 @@ export default function App() {
         </Toolbar>
       </AppBar>
 
-      {page === "candidates" && <CandidatesPage tick={tick} />}
-      {page === "journal" && <JournalPage tick={tick} />}
+      {page === "candidates" && <CandidatesPage tick={tick} onChart={setChartSym} />}
+      {page === "journal" && <JournalPage tick={tick} onChart={setChartSym} />}
+      {page === "backtest" && <BacktestPage />}
 
       <BottomNavigation
         value={page}
@@ -42,6 +48,7 @@ export default function App() {
       >
         <BottomNavigationAction label="Candidates" value="candidates" icon={<TrendingUpIcon />} />
         <BottomNavigationAction label="Journal" value="journal" icon={<ReceiptLongIcon />} />
+        <BottomNavigationAction label="Backtest" value="backtest" icon={<QueryStatsIcon />} />
       </BottomNavigation>
     </Box>
   );

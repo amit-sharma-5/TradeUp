@@ -81,4 +81,59 @@ export const api = {
   placeOrder: (o: { symbol: string; kind: string; qty: number; limit_price: number; stop: number }) =>
     post<{ trade_id: string; status: string }>("/api/orders", o),
   cancelOrder: (id: string) => post<{ trade_id: string; status: string }>(`/api/orders/${id}/cancel`),
+  chart: (symbol: string) => get<ChartData>(`/api/chart/${symbol}`),
+  runBacktest: (p: { start?: string; stop_pct?: number; chase_pct?: number; max_pos?: number; grade?: string }) =>
+    post<{ started: boolean; running: boolean; status: string }>("/api/backtest", p),
+  backtestStatus: () => get<BacktestStatus>("/api/backtest"),
 };
+
+export interface Candle {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+export interface LinePoint { date: string; value: number; }
+export interface ChartData {
+  symbol: string;
+  benchmark_source: string;
+  candles: Candle[];
+  ma50: LinePoint[];
+  ma200: LinePoint[];
+  pivot: number | null;
+  stop: number | null;
+  stage: number;
+  rs: number | null;
+  tt: boolean;
+  breakouts: { date: string; price: number; type: string }[];
+}
+
+export interface BacktestStats {
+  trades: number; "win%": number; "avg gain%": number; "avg loss%": number;
+  "gain/loss": number; "expectancy%": number; "median%": number;
+  "profit factor": number; "avg bars": number; "fwd60%": number;
+}
+export interface BacktestResult {
+  asof: string;
+  start: string;
+  params: { stop_pct: number; chase_pct: number; max_pos: number; min_grade: string };
+  benchmark_source: string;
+  stocks: number;
+  breakouts: number;
+  summary: (BacktestStats & { set: string })[];
+  breakdowns: Record<string, Record<string, number | string | null>[]>;
+  portfolio: {
+    "CAGR%": number | null; "max DD%": number | null; "avg invested%": number | null;
+    "Nifty 500 CAGR%": number | null; "Nifty 500 max DD%": number | null;
+    years: number | null;
+    curve: { date: string; equity: number; invested: number }[];
+  };
+}
+export interface BacktestStatus {
+  running: boolean;
+  status: string;
+  has_result: boolean;
+  result: BacktestResult | null;
+}

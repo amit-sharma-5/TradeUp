@@ -11,7 +11,7 @@ const STATUS_COLOR: Record<string, "success" | "warning" | "default" | "error"> 
   OPEN: "success", PLANNED: "warning", CLOSED: "default", CANCELLED: "error",
 };
 
-export default function JournalPage({ tick }: { tick: number }) {
+export default function JournalPage({ tick, onChart }: { tick: number; onChart?: (symbol: string) => void }) {
   const [trades, setTrades] = useState<Trade[] | null>(null);
   const [err, setErr] = useState("");
 
@@ -40,11 +40,11 @@ export default function JournalPage({ tick }: { tick: number }) {
       )}
       {open.length > 0 && <>
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, ml: 1 }}>Open / planned</Typography>
-        <Stack spacing={1.5} sx={{ mb: 3 }}>{open.map(tradeCard)}</Stack>
+        <Stack spacing={1.5} sx={{ mb: 3 }}>{open.map((t) => tradeCard(t, onChart))}</Stack>
       </>}
       {closed.length > 0 && <>
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, ml: 1 }}>Closed</Typography>
-        <Stack spacing={1.5}>{closed.map(tradeCard)}</Stack>
+        <Stack spacing={1.5}>{closed.map((t) => tradeCard(t, onChart))}</Stack>
       </>}
       {!trades.length && (
         <Typography sx={{ mt: 6, textAlign: "center" }} color="text.secondary">
@@ -55,7 +55,7 @@ export default function JournalPage({ tick }: { tick: number }) {
   );
 }
 
-function tradeCard(t: Trade) {
+function tradeCard(t: Trade, onChart?: (symbol: string) => void) {
   const pnl = t.status === "OPEN" ? t.unrealized_pnl : t.pnl;
   const pnlPct = t.status === "OPEN" ? t.unrealized_pnl_pct : t.pnl_pct;
   return (
@@ -76,6 +76,12 @@ function tradeCard(t: Trade) {
             <Typography variant="body2">Last ₹{fmt(t.last_price)}</Typography>}
           <Typography variant="body2">Stop ₹{fmt(t.stop)}</Typography>
           {t.exit_price != null && <Typography variant="body2">Exit ₹{fmt(t.exit_price)}</Typography>}
+          {onChart && (
+            <Typography variant="body2" color="primary" sx={{ cursor: "pointer", ml: "auto" }}
+                        onClick={() => onChart(t.symbol)}>
+              Chart
+            </Typography>
+          )}
         </Stack>
         {t.exit_reason && <Typography variant="body2" color="text.secondary">{t.exit_reason}</Typography>}
         <Divider sx={{ my: 1.5 }} />

@@ -11,7 +11,7 @@ const fmt = (n: number | null | undefined, d = 2) =>
 
 const GROUPS = ["Strong Buy", "Buy", "Watch"];
 
-export default function CandidatesPage({ tick }: { tick: number }) {
+export default function CandidatesPage({ tick, onChart }: { tick: number; onChart?: (symbol: string) => void }) {
   const [signals, setSignals] = useState<Signal[] | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [err, setErr] = useState("");
@@ -83,6 +83,11 @@ export default function CandidatesPage({ tick }: { tick: number }) {
                       <Chip size="small" label={`Buy point ₹${fmt(s.pivot)}`} />
                       <Chip size="small" label={`Stop ₹${fmt(s.stop)}`} />
                       <Box flexGrow={1} />
+                      {onChart && (
+                        <Button size="small" onClick={(e) => { e.stopPropagation(); onChart(s.symbol); }}>
+                          Chart
+                        </Button>
+                      )}
                       <Button size="small" variant="contained" onClick={(e) => { e.stopPropagation(); setTradeSym(s.symbol); }}>
                         Trade
                       </Button>

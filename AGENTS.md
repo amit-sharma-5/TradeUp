@@ -73,9 +73,20 @@ Working end-to-end with real signals, verified:
    - SQLite auto-import: switching to `TRADEUP_STORE=sqlite` imports the CSV
      journal once (only if the DB is empty — can't duplicate).
    - PWA: manifest + SVG icon + theme color; installable on mobile.
-7. Left for later: Dhan WebSocket feed (blocked on the owner's token; the
-   `fetch` seam in quote_poller is the swap point), richer PWA (offline/service
-   worker), trade-editing UI, golden signal snapshot test against SEPA.
+7. ~~Charts + backtest~~ **Done (2026-10-22):**
+   - `chartdata.py` + `GET /api/chart/{symbol}`: OHLCV (SEPA price store, with its
+     corporate-action fixes) + MA50/MA200 + pivot/stop lines + breakout markers +
+     stage/RS/TT chips. `ChartPage.tsx` (lightweight-charts v5), reachable from
+     candidate cards and journal trades.
+   - `backtester.py` + `POST /api/backtest` / `GET /api/backtest`: runs the imported
+     SEPA backtester (SEPA-filtered vs all-breakouts baseline, grade/type/base/reason
+     breakdowns, portfolio equity curve) in a background thread. `BacktestPage.tsx`
+     with run button + polling. Full run ~10 s warm (1,207 trades since 2012,
+     41.6% CAGR / −18.5% max DD on the owner's data). Tests skip without SEPA (CI).
+8. Left for later: Dhan WebSocket feed (blocked on the owner's token; the
+   `fetch` seam in quote_poller is the swap point), richer chart annotations
+   (RS line, stage shading), trade-editing UI, StockEdge fundamentals in the
+   UI, notes & lessons in the journal, Excel/CSV exports.
 
 ## Conventions
 
