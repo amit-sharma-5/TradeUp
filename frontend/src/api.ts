@@ -24,8 +24,11 @@ export interface Trade {
   symbol: string;
   status: "PLANNED" | "OPEN" | "CLOSED" | "CANCELLED";
   qty: number;
+  order_kind: "BUY_STOP" | "LIMIT";
+  trigger: number | null;
   entry_price: number | null;
   stop: number | null;
+  pivot: number | null;
   exit_price: number | null;
   exit_reason: string;
   events: TradeEvent[];

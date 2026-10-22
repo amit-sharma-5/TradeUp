@@ -24,7 +24,11 @@ Working scaffold, verified end-to-end:
 
 ## Immediate backlog (suggested order)
 
-1. `backend/tests/` pytest: broker fill rules (buy-stop, chase-limit cancel, limit, stop-out), journal state machine (legal transitions + exactly one event each), API contract tests (FastAPI TestClient). Add GitHub Actions CI.
+1. ~~Tests + CI~~ **Done (2026-10-22):** backend split into modules matching ARCHITECTURE §3
+   (`domain.py` with the trade FSM, `broker/{base,paper}.py` — fill rules ported verbatim from
+   `sepa/broker.py`, `store/{base,memory}.py`, `signals/mock.py`, thin `main.py` app factory);
+   33 pytest tests (`backend/tests/`: fills, FSM, API contract); CI in `.github/workflows/ci.yml`
+   (pytest + frontend build). Note: frontend types live in `src/api.ts`, not `src/types.ts`.
 2. Replace in-memory stores with `csv_store.py` implementing the `Store` interface (atomic writes: temp file + rename).
 3. `signals/adapter.py`: import the SEPA engine as a library and expose `get_candidates() -> list[Signal]`. Decide with the owner how to point it at a price store (initially Yahoo-only download, no API key).
 4. UI iteration on the three pages (owner is not a frontend expert — keep components simple, prefer MUI defaults).
