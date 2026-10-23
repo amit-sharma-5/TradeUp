@@ -162,7 +162,7 @@ export default function ChartPage({ symbol, onBack, onTrade }:
               {data.breakouts.length} breakout{data.breakouts.length === 1 ? "" : "s"} on chart
             </Typography>
             <Box flexGrow={1} />
-            {onTrade && (
+            {onTrade && data.candles.length > 0 && (
               <Button size="small" variant="outlined" onClick={() => {
                 const last = data.candles[data.candles.length - 1].close;
                 const pivot = data.pivot ?? last;

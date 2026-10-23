@@ -30,8 +30,13 @@ export default function StockEdgeDialog({ open, close }: { open: boolean; close:
 
   return (
     <Dialog open={open} onClose={close} fullWidth maxWidth="xs">
-      <DialogTitle>StockEdge fundamentals</DialogTitle>
+      <DialogTitle>Import StockEdge export</DialogTitle>
       <DialogContent>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          StockEdge has no API — you export the scan in their app, then import the
+          file here. It lands where the engine reads it and a rescan starts, so
+          EPS/quality flags appear in the screener.
+        </Typography>
         {status?.latest?.error && <Alert severity="warning" sx={{ mb: 1 }}>{status.latest.error}</Alert>}
         {err && <Alert severity="error" sx={{ mb: 1 }}>{err}</Alert>}
         {msg && <Alert severity="success" sx={{ mb: 1 }}>{msg}</Alert>}
