@@ -14,7 +14,11 @@ Signal → decision → paper order → outcome → review. That's the whole pro
 
 The script installs what's missing on first run, builds the app if needed,
 starts **one server** and opens **http://127.0.0.1:8000** in your browser.
-Close the terminal window to stop. (Port override: `TRADEUP_PORT=8080`.)
+Closing the terminal window also stops it.
+
+**Stop:** double-click `Stop TradeUp.command` (macOS) / `stop_tradeup.bat`
+(Windows) — or just close the server's terminal window. The journal in
+`data/journal/` always survives. (Port override: `TRADEUP_PORT=8080`.)
 
 **Manual (developer):** all commands run from the repo root. Python 3.11, Node 18+.
 
