@@ -107,6 +107,8 @@ export default function JournalPage({ tick, onChart }: { tick: number; onChart?:
           <Typography variant="caption" color="text.secondary">
             across {closed.length} closed trade{closed.length > 1 ? "s" : ""}
           </Typography>
+          <Box flexGrow={1} />
+          <Button size="small" href={api.journalCsv()} download>Export CSV</Button>
         </Stack>
       )}
       {open.length > 0 && <>

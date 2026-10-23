@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box, Button, Container, MenuItem, Stack, TextField, Typography, Alert, Paper, IconButton,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { api, Signal } from "../api";
+import { api, Signal, TicketPlan } from "../api";
 
 const fmt = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
@@ -17,6 +17,19 @@ export default function TradePage({ signal, onDone }: { signal: Signal; onDone: 
   const [done, setDone] = useState<string | null>(null);
 
   const risk = (limit - stop) * qty;
+  const [plan, setPlan] = useState<TicketPlan | null>(null);
+
+  // Suggested size from the engine's rules (equity × risk% ÷ (entry − stop),
+  // capped by max position %) — the same math the backtest assumed.
+  useEffect(() => {
+    let alive = true;
+    api.ticket(signal.symbol, { entry: limit, stop })
+      .then((p: TicketPlan) => { if (alive) setPlan(p); })
+      .catch(() => { /* sizing is a helper, never blocks the ticket */ });
+    return () => { alive = false; };
+  }, [signal.symbol, limit, stop]);
+
+  useEffect(() => { if (plan && plan.qty > 0) setQty(plan.qty); }, [plan]);
 
   const submit = async () => {
     setBusy(true); setErr("");
@@ -41,7 +54,7 @@ export default function TradePage({ signal, onDone }: { signal: Signal; onDone: 
           <Alert severity="success" sx={{ justifyContent: "center" }}>
             Paper order placed ({done}). It fills when price reaches your trigger.
           </Alert>
-          <Button variant="contained" sx={{ mt: 2 }} onClick={onDone}>Back to candidates</Button>
+          <Button variant="contained" sx={{ mt: 2 }} onClick={onDone}>Done</Button>
         </Paper>
       ) : (
         <Paper variant="outlined" sx={{ p: 2.5 }}>
@@ -58,7 +71,14 @@ export default function TradePage({ signal, onDone }: { signal: Signal; onDone: 
                        onChange={(e) => setStop(Number(e.target.value))} helperText="Your automatic exit if the trade goes wrong" />
             <Alert severity="info" icon={false}>
               Risk on this trade: ₹{fmt(risk)} ({fmt(limit - stop)} per share)
+              {plan && <>
+                <br />Suggested size: <b>{plan.qty} shares</b> (₹{fmt(plan.risk_rs)} risk
+                = {fmt(plan.risk_pct_eq)}% of equity{plan.capped ? ", capped by max position %" : ""})
+                <br />R multiples: +2R ₹{fmt(plan.r2)} · +3R ₹{fmt(plan.r3)}
+              </>}
             </Alert>
+            {plan && plan.problems.length > 0 &&
+              <Alert severity="warning">{plan.problems.join(" · ")}</Alert>}
             {err && <Alert severity="error">{err}</Alert>}
             <Button variant="contained" size="large" disabled={busy} onClick={submit}>
               {busy ? "Placing…" : "Preview & confirm paper order"}

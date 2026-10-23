@@ -6,16 +6,22 @@ Thin API layer over the domain/broker/store/signals seams (docs/ARCHITECTURE.md
 §3). Storage is CSV (D3); signals come from the imported SEPA engine when its
 repo is present (SEPA_ROOT), otherwise the mock source keeps the app usable.
 """
+import sys
+
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import config
 from . import auth
+from . import settings as app_settings
 from .backtester import Backtester
 from .broker.paper import PaperBroker
 from .chartdata import build_chart
+from .symbols import get_symbols
+from .ticket import plan_for
+from .watchlists import from_screen as watchlists_from_screen
 from .symbols import get_symbols
 from .domain import Category, Signal, TradeStatus
 from .jobs.notify import send as notify_send
@@ -59,6 +65,7 @@ def create_app(start_background: bool = True, journal_dir=None,
               if source_name == "sepa" else None)
     backtester = Backtester()
     app.state.store, app.state.broker, app.state.prices = store, broker, prices
+    app.state.signals = signals
 
     class OrderIn(BaseModel):
         symbol: str
@@ -79,6 +86,11 @@ def create_app(start_background: bool = True, journal_dir=None,
 
     class NoteIn(BaseModel):
         note: str
+
+    class SettingsIn(BaseModel):
+        equity: float | None = None
+        risk_pct: float | None = None
+        max_pos_pct: float | None = None
 
     class BacktestIn(BaseModel):
         start: str = "2012-01-01"
@@ -215,6 +227,71 @@ def create_app(start_background: bool = True, journal_dir=None,
             raise HTTPException(503, "stock search needs the SEPA price store")
         return get_symbols()
 
+    @app.get("/api/watchlists")
+    def watchlists():
+        """Everything the screener computed beyond the 3 action lists:
+        Uptrend (no base), Leaders, Sell-Avoid, Earnings × Tech, Market context."""
+        if source_name != "sepa":
+            raise HTTPException(503, "watchlists need the SEPA engine")
+        out = signals.last_screen()
+        if out is None:
+            signals.refresh_async()
+            return {"asof": "", "stale": True}
+        return watchlists_from_screen(*out)
+
+    @app.get("/api/settings")
+    def get_settings():
+        return app_settings.get()
+
+    @app.put("/api/settings")
+    def put_settings(body: SettingsIn):
+        return app_settings.put(body.dict(exclude_none=True))
+
+    @app.get("/api/ticket/{symbol}")
+    def ticket(symbol: str, entry: float | None = None, stop: float | None = None,
+               equity: float | None = None):
+        """Position sizing per the engine's rules: qty from risk % and entry-stop
+        distance, capped by max position %, plus chase-limit warnings."""
+        if source_name != "sepa":
+            raise HTTPException(503, "ticket sizing needs the SEPA engine")
+        try:
+            return plan_for(symbol, entry=entry, stop=stop, equity=equity)
+        except FileNotFoundError:
+            raise HTTPException(404, f"no price data for {symbol}")
+
+    @app.get("/api/news/{symbol}")
+    def news(symbol: str):
+        """Headlines naming the company (Google News RSS via the engine, trusted
+        newsrooms only). Fetched live — a slow call; failures degrade to empty."""
+        if source_name != "sepa":
+            raise HTTPException(503, "news needs the SEPA engine")
+        try:
+            if str(config.SEPA_ROOT) not in sys.path:
+                sys.path.insert(0, str(config.SEPA_ROOT))
+            from sepa import news as sepa_news
+            df = sepa_news.fetch(symbol)
+            return [{"date": str(r.date), "source": r.source, "title": r.title,
+                     "link": r.link, "tags": r.tags} for r in df.itertuples()]
+        except Exception as e:
+            return {"error": f"news unavailable: {e}"}
+
+    @app.get("/api/journal.csv")
+    def journal_csv():
+        """The journal as CSV (Excel-friendly) — your data, exportable anytime."""
+        import csv as _csv
+        import io
+        trades = store.list_trades()
+        buf = io.StringIO()
+        w = _csv.writer(buf)
+        cols = ["id", "symbol", "status", "qty", "order_kind", "trigger", "entry_price",
+                "stop", "exit_price", "exit_reason", "note"]
+        w.writerow(cols)
+        for t in trades:
+            d = t.to_dict()
+            w.writerow([d[c] if d[c] is not None else "" for c in cols])
+        return Response(buf.getvalue(), media_type="text/csv",
+                        headers={"Content-Disposition": f"attachment; filename=tradeup_journal_{_today()}.csv"})
+
     @app.get("/api/chart/{symbol}")
     def chart(symbol: str, days: int = 400):
         """OHLCV + MAs + pivot/stop + breakout marks for the chart page."""
@@ -269,3 +346,8 @@ def create_app(start_background: bool = True, journal_dir=None,
 
 
 app = create_app()
+
+
+def _today() -> str:
+    import datetime
+    return datetime.date.today().isoformat()

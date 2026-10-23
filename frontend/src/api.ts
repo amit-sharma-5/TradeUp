@@ -91,7 +91,43 @@ export const api = {
   runBacktest: (p: { start?: string; stop_pct?: number; chase_pct?: number; max_pos?: number; grade?: string }) =>
     post<{ started: boolean; running: boolean; status: string }>("/api/backtest", p),
   backtestStatus: () => get<BacktestStatus>("/api/backtest"),
+  settings: () => get<TraderSettings>("/api/settings"),
+  saveSettings: (s: Partial<TraderSettings>) => put<TraderSettings>("/api/settings", s),
+  ticket: (symbol: string, o?: { entry?: number; stop?: number; equity?: number }) => {
+    const q = new URLSearchParams();
+    if (o?.entry) q.set("entry", String(o.entry));
+    if (o?.stop) q.set("stop", String(o.stop));
+    if (o?.equity) q.set("equity", String(o.equity));
+    return get<TicketPlan>(`/api/ticket/${symbol}?${q}`);
+  },
+  watchlists: () => get<Watchlists>("/api/watchlists"),
+  news: (symbol: string) => get<NewsItem[] | { error: string }>(`/api/news/${symbol}`),
+  journalCsv: () => "/api/journal.csv" as string,
 };
+
+export interface TraderSettings { equity: number; risk_pct: number; max_pos_pct: number; }
+export interface TicketPlan {
+  pivot: number; entry: number; stop: number; stop_pct: number; qty: number;
+  value: number; risk_rs: number; risk_pct_eq: number; pos_pct_eq: number;
+  capped: boolean; r2: number; r3: number; problems: string[]; name: string; ltp: number | null;
+}
+export interface WatchlistRow { symbol: string; close?: number; rs?: number; stage?: number; tt?: boolean; setup?: string; cycle?: string; signal?: string; note?: string; why?: string; [k: string]: unknown; }
+export interface Watchlists {
+  asof: string; stale?: boolean;
+  "Uptrend (no base)": WatchlistRow[];
+  "Leaders": WatchlistRow[];
+  "Sell-Avoid": WatchlistRow[];
+  "Earnings x Tech": WatchlistRow[];
+  "Market": Record<string, unknown>[];
+}
+export interface NewsItem { date: string; source: string; title: string; link: string; tags: string; }
+
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const r = await fetch(path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (r.status === 401) throw new UnauthorizedError();
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? `HTTP ${r.status}`);
+  return r.json();
+}
 
 export interface StockSymbol { symbol: string; name: string; industry: string; }
 

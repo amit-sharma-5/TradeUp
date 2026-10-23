@@ -8,7 +8,7 @@ import {
   createChart, CandlestickSeries, LineSeries, HistogramSeries,
   createSeriesMarkers, type IChartApi, ColorType, CrosshairMode,
 } from "lightweight-charts";
-import { api, ChartData, Signal, StockSymbol } from "../api";
+import { api, ChartData, NewsItem, Signal, StockSymbol } from "../api";
 
 const fmt = (n: number | null | undefined, d = 2) =>
   n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d });
@@ -23,10 +23,17 @@ export default function ChartPage({ symbol, onBack, onTrade }:
   const [data, setData] = useState<ChartData | null>(null);
   const [err, setErr] = useState("");
   const [allSymbols, setAllSymbols] = useState<StockSymbol[] | null>(null);
+  const [news, setNews] = useState<NewsItem[] | null>(null);
 
   useEffect(() => {
     if (current == null) api.symbols().then(setAllSymbols).catch((e) => setErr(String(e)));
   }, [current == null]);
+
+  useEffect(() => {
+    if (!current) return;
+    setNews(null);
+    api.news(current).then((n) => setNews(Array.isArray(n) ? n : [])).catch(() => setNews([]));
+  }, [current]);
 
   useEffect(() => {
     if (!current) return;
@@ -171,6 +178,25 @@ export default function ChartPage({ symbol, onBack, onTrade }:
             )}
           </Stack>
           <Box ref={ref} sx={{ height: 380, border: 1, borderColor: "divider", borderRadius: 1 }} />
+          {news && news.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+                News naming the company (reputable newsrooms)
+              </Typography>
+              <Stack spacing={0.5}>
+                {news.slice(0, 6).map((nn, i) => (
+                  <Typography key={i} variant="body2" component="div">
+                    <a href={nn.link} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>
+                      {nn.title}
+                    </a>
+                    <Typography variant="caption" color="text.secondary" component="span">
+                      {" "}— {nn.source}{nn.tags ? ` · ${nn.tags}` : ""}
+                    </Typography>
+                  </Typography>
+                ))}
+              </Stack>
+            </Box>
+          )}
         </>
       )}
     </Container>

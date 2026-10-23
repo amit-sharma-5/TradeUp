@@ -11,16 +11,6 @@ pytestmark = pytest.mark.skipif(
     reason="SEPA engine not available")
 
 
-@pytest.fixture
-def real_client(tmp_path, monkeypatch):
-    import app.config as cfg
-    from app.main import create_app
-    from fastapi.testclient import TestClient
-    monkeypatch.setattr(cfg, "SEPA_ROOT", SEPA_ROOT)
-    monkeypatch.setattr(cfg, "JOURNAL_DIR", tmp_path / "journal")
-    return TestClient(create_app(start_background=False, journal_dir=tmp_path / "journal"))
-
-
 def test_chart_payload(real_client):
     r = real_client.get("/api/chart/PERSISTENT")
     assert r.status_code == 200

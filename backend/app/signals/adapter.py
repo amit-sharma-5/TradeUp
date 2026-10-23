@@ -54,10 +54,11 @@ class SepaSignalSource(SignalSource):
     runs in a background thread and the API never blocks on it.
     """
 
-    def __init__(self, sepa_root: Path = SEPA_ROOT):
-        self._root = Path(sepa_root)
+    def __init__(self, sepa_root: Path = None):
+        self._root = Path(sepa_root) if sepa_root else None
         self._signals: list[Signal] = []
         self._asof: str = ""
+        self._out: dict | None = None         # the raw screener output (all lists)
         self._status = "not run yet"    # human-readable last-refresh state
         self._lock = threading.Lock()
         self._refreshing = False
@@ -73,6 +74,11 @@ class SepaSignalSource(SignalSource):
             return {"asof": self._asof, "status": self._status,
                     "refreshing": self._refreshing, "count": len(self._signals)}
 
+    def last_screen(self) -> tuple[str, dict] | None:
+        """(asof, screener output dict) from the last successful scan, or None."""
+        with self._lock:
+            return (self._asof, self._out) if self._out is not None else None
+
     def refresh_async(self):
         """Kick a background refresh (no-op while one is already running)."""
         with self._lock:
@@ -84,9 +90,9 @@ class SepaSignalSource(SignalSource):
 
     def refresh(self) -> list[Signal]:
         """Synchronous scan — used by tests and the scheduler."""
-        signals, asof = self._run_engine()
+        signals, asof, out = self._run_engine()
         with self._lock:
-            self._signals, self._asof = signals, asof
+            self._signals, self._asof, self._out = signals, asof, out
             self._status = f"ok, {len(signals)} candidates as of {asof}"
         return signals
 
@@ -132,4 +138,4 @@ class SepaSignalSource(SignalSource):
                 sig = row_to_signal(row, category, chg(row["symbol"]))
                 if sig is not None:
                     signals.append(sig)
-        return signals, str(asof.date())
+        return signals, str(asof.date()), out

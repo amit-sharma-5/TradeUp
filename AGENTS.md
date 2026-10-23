@@ -83,10 +83,28 @@ Working end-to-end with real signals, verified:
      breakdowns, portfolio equity curve) in a background thread. `BacktestPage.tsx`
      with run button + polling. Full run ~10 s warm (1,207 trades since 2012,
      41.6% CAGR / −18.5% max DD on the owner's data). Tests skip without SEPA (CI).
-8. Left for later: Dhan WebSocket feed (blocked on the owner's token; the
-   `fetch` seam in quote_poller is the swap point), richer chart annotations
-   (RS line, stage shading), trade-editing UI, StockEdge fundamentals in the
-   UI, notes & lessons in the journal, Excel/CSV exports.
+8. ~~Feature parity batch 1~~ **Done (2026-10-22):**
+   - Stock search: `/api/symbols` (NIFTY 500 + names) + search mode on the
+     Chart tab; `Paper trade` from any chart (orders accept any symbol in the
+     price store, chart-derived levels).
+   - Trade management: move stop (journaled as stop_moved), manual exit
+     (exited event), cancel; notes & lessons on every trade (note column,
+     CSV + SQLite with migration).
+   - Full screener output: `/api/watchlists` (Uptrend, Leaders, Sell-Avoid,
+     Earnings × Tech, Market context) + tabs on the Candidates page.
+   - Position sizing: `/api/ticket/{symbol}` calls the imported
+     `sepa.trading.plan` (equity × risk% ÷ (entry−stop), max-pos cap, hard
+     limits, chase warnings); TradePage prefills qty + shows R multiples.
+     Settings (equity/risk) in data/settings.json via /api/settings.
+   - News: `/api/news/{symbol}` (engine's Google-RSS fetch, trusted newsrooms)
+     shown under the chart.
+   - Daily change report: scheduler diffs Strong Buy/Buy/Watch membership vs
+     the previous run and sends it to Telegram (dormant without token).
+   - `/api/journal.csv` export + Journal button.
+9. Left from SEPA-terminal for later: Dhan WebSocket feed + live scanner
+   alerts (blocked on the owner's token), Sectors page (industry breadth),
+   StockEdge upload page, Excel workbook export, richer chart annotations
+   (RS line, stage shading, weekly), golden signal snapshot test.
 
 ## Conventions
 

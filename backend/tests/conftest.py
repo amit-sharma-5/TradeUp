@@ -37,3 +37,15 @@ def signals():
 def persistent_sig(signals):
     """The STRONG_BUY mock signal, handy for order placement."""
     return next(s for s in signals if s.symbol == "PERSISTENT")
+
+
+@pytest.fixture
+def real_client(tmp_path, monkeypatch):
+    """App wired to the real SEPA engine (skipped tests handle its absence)."""
+    from app.config import SEPA_ROOT
+    import app.config as cfg
+    from app.main import create_app
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(cfg, "SEPA_ROOT", SEPA_ROOT)
+    monkeypatch.setattr(cfg, "JOURNAL_DIR", tmp_path / "journal")
+    return TestClient(create_app(start_background=False, journal_dir=tmp_path / "journal"))

@@ -28,8 +28,44 @@ def run_daily_job(adapter) -> dict:
     from sepa.universe import current_nifty500     # also refreshes/validates the member list
     symbols = sorted(current_nifty500()["Symbol"].astype(str))
     _update_prices(symbols)
+    before = _list_membership(adapter)
     signals = adapter.refresh()
+    changes = _report_changes(before, _list_membership(adapter))
+    from .notify import send
+    if changes:
+        send(f"📊 TradeUp scan {adapter.status['asof']}\n{changes}")
     return {"symbols": len(symbols), "candidates": len(signals), "asof": adapter.status["asof"]}
+
+
+def _list_membership(adapter) -> dict:
+    """symbol → list name, from the last screen (for the daily change report)."""
+    out = adapter.last_screen()
+    if not out:
+        return {}
+    asof, screen = out
+    m = {}
+    for label in ("Strong Buy", "Buy", "Watch"):
+        df = screen.get(label)
+        if df is not None and len(df) and "symbol" in df.columns:
+            for s in df.symbol:
+                m[str(s)] = label
+    return m
+
+
+def _report_changes(before: dict, after: dict) -> str:
+    """Human Telegram summary: which stocks entered / left the action lists."""
+    added = [f"➕ {s} → {v}" for s, v in after.items() if s not in before]
+    removed = [f"➖ {s} (was {before[s]})" for s in before if s not in after]
+    moved = [f"↕ {s}: {before[s]} → {after[s]}" for s in after
+             if s in before and before[s] != after[s]]
+    parts = []
+    if added:
+        parts.append("New: " + "; ".join(added))
+    if moved:
+        parts.append("Changed: " + "; ".join(moved))
+    if removed:
+        parts.append("Dropped: " + "; ".join(removed))
+    return "\n".join(parts) or "No changes in Strong Buy / Buy / Watch."
 
 
 class Scheduler:

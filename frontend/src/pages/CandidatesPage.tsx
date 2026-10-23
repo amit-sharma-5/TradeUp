@@ -5,6 +5,7 @@ import {
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { api, Signal, Health } from "../api";
 import TradePage from "./TradePage";
+import WatchlistsSection from "./Watchlists";
 
 const fmt = (n: number | null | undefined, d = 2) =>
   n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d });
@@ -61,6 +62,7 @@ export default function CandidatesPage({ tick, onChart }: { tick: number; onChar
           </IconButton>
         </Tooltip>
       </Stack>
+      {health?.signal_source === "sepa" && <WatchlistsSection />}
       {GROUPS.map((g) => {
         const rows = signals.filter((s) => s.category === g);
         if (!rows.length) return null;
