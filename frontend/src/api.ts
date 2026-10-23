@@ -103,7 +103,25 @@ export const api = {
   watchlists: () => get<Watchlists>("/api/watchlists"),
   news: (symbol: string) => get<NewsItem[] | { error: string }>(`/api/news/${symbol}`),
   journalCsv: () => "/api/journal.csv" as string,
+  stockedge: () => get<StockEdgeStatus>("/api/stockedge"),
+  uploadStockedge: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const doFetch = async () => {
+      const r = await fetch("/api/stockedge/upload", { method: "POST", body: form });
+      if (r.status === 401) throw new UnauthorizedError();
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? `HTTP ${r.status}`);
+      return r.json() as Promise<{ saved: string; refresh_started: boolean; note: string }>;
+    };
+    return doFetch();
+  },
 };
+
+export interface StockEdgeFile { name: string; size_kb: number; modified: string; }
+export interface StockEdgeStatus {
+  files: StockEdgeFile[];
+  latest: { file?: string; rows?: number; symbols?: number | null; se_date?: string | null; error?: string };
+}
 
 export interface TraderSettings { equity: number; risk_pct: number; max_pos_pct: number; }
 export interface TicketPlan {

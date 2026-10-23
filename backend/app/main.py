@@ -8,7 +8,7 @@ repo is present (SEPA_ROOT), otherwise the mock source keeps the app usable.
 """
 import sys
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ from . import settings as app_settings
 from .backtester import Backtester
 from .broker.paper import PaperBroker
 from .chartdata import build_chart
+from .stockedge_admin import save_upload, status as stockedge_status
 from .symbols import get_symbols
 from .ticket import plan_for
 from .watchlists import from_screen as watchlists_from_screen
@@ -258,6 +259,32 @@ def create_app(start_background: bool = True, journal_dir=None,
             return plan_for(symbol, entry=entry, stop=stop, equity=equity)
         except FileNotFoundError:
             raise HTTPException(404, f"no price data for {symbol}")
+
+    @app.get("/api/stockedge")
+    def stockedge():
+        """Status of the StockEdge fundamentals exports the screener uses."""
+        if source_name != "sepa":
+            raise HTTPException(503, "StockEdge needs the SEPA engine")
+        try:
+            if str(config.SEPA_ROOT) not in sys.path:
+                sys.path.insert(0, str(config.SEPA_ROOT))
+            return stockedge_status()
+        except Exception as e:
+            return {"files": [], "latest": {"error": str(e)}}
+
+    @app.post("/api/stockedge/upload")
+    def stockedge_upload(file: UploadFile):
+        """Save a StockEdge scan export where the engine reads it, then rescan."""
+        if source_name != "sepa":
+            raise HTTPException(503, "StockEdge needs the SEPA engine")
+        try:
+            content = file.file.read()
+            name = save_upload(file.filename or "", content)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        started = signals.refresh_async()
+        return {"saved": name, "refresh_started": started,
+                "note": "rescan started — candidates and watchlists update in a minute"}
 
     @app.get("/api/news/{symbol}")
     def news(symbol: str):

@@ -101,9 +101,15 @@ Working end-to-end with real signals, verified:
    - Daily change report: scheduler diffs Strong Buy/Buy/Watch membership vs
      the previous run and sends it to Telegram (dormant without token).
    - `/api/journal.csv` export + Journal button.
-9. Left from SEPA-terminal for later: Dhan WebSocket feed + live scanner
+9. ~~StockEdge upload page~~ **Done (2026-10-22):** `/api/stockedge` (status:
+   files on file + parsed row/symbol/date counts) and `/api/stockedge/upload`
+   (validated multipart save into the engine's data/stockedge folder + auto
+   rescan). Upload dialog on the Candidates header. StockEdge has no public
+   API (checked) — exports remain the sanctioned path; the app just removes
+   the file-management friction.
+10. Left from SEPA-terminal for later: Dhan WebSocket feed + live scanner
    alerts (blocked on the owner's token), Sectors page (industry breadth),
-   StockEdge upload page, Excel workbook export, richer chart annotations
+   Excel workbook export, richer chart annotations
    (RS line, stage shading, weekly), golden signal snapshot test.
 
 ## Conventions

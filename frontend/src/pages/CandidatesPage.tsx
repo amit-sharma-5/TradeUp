@@ -3,9 +3,11 @@ import {
   Box, Card, CardContent, Chip, Container, Stack, Typography, Button, CircularProgress, Alert, IconButton, Tooltip,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { api, Signal, Health } from "../api";
 import TradePage from "./TradePage";
 import WatchlistsSection from "./Watchlists";
+import StockEdgeDialog from "./StockEdgeDialog";
 
 const fmt = (n: number | null | undefined, d = 2) =>
   n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d });
@@ -18,6 +20,7 @@ export default function CandidatesPage({ tick, onChart }: { tick: number; onChar
   const [err, setErr] = useState("");
   const [tradeSym, setTradeSym] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [seOpen, setSeOpen] = useState(false);
 
   useEffect(() => {
     api.candidates().then(setSignals).catch((e) => setErr(String(e)));
@@ -56,12 +59,20 @@ export default function CandidatesPage({ tick, onChart }: { tick: number; onChar
         )}
         {health?.signals?.refreshing && <CircularProgress size={16} />}
         <Box flexGrow={1} />
+        {health?.signal_source === "sepa" && (
+          <Tooltip title="StockEdge fundamentals export">
+            <IconButton size="small" onClick={() => setSeOpen(true)} aria-label="stockedge upload">
+              <CloudUploadIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
         <Tooltip title="Re-run the scan now">
           <IconButton size="small" onClick={refresh} aria-label="refresh signals">
             <RefreshIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       </Stack>
+      {seOpen && <StockEdgeDialog open={seOpen} close={() => setSeOpen(false)} />}
       {health?.signal_source === "sepa" && <WatchlistsSection />}
       {GROUPS.map((g) => {
         const rows = signals.filter((s) => s.category === g);
