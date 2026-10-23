@@ -149,3 +149,15 @@ def test_order_on_any_stock_not_just_candidates(client):
         "limit_price": 1000.0, "stop": 900.0})
     # mock source has no price store → unknown symbol stays a clean 404
     assert r.status_code == 404
+
+
+def test_root_serves_built_frontend(client):
+    """When frontend/dist exists (it does after a build), GET / serves the app —
+    this is what the one-click start scripts rely on."""
+    import app.config as cfg
+    dist = cfg.REPO_ROOT / "frontend" / "dist"
+    if not (dist / "index.html").exists():
+        pytest.skip("frontend not built")
+    r = client.get("/")
+    assert r.status_code == 200 and '<div id="root">' in r.text
+    assert client.get("/api/health").status_code == 200   # API unaffected by the mount

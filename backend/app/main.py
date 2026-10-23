@@ -369,6 +369,14 @@ def create_app(start_background: bool = True, journal_dir=None,
     if start_background and poller:
         poller.start()
 
+    # Serve the built frontend (frontend/dist) so the whole app is ONE process
+    # on ONE port — that's what the one-click start scripts rely on. In dev,
+    # Vite keeps proxying /api to :8000 and this mount is simply unused.
+    dist = config.REPO_ROOT / "frontend" / "dist"
+    if dist.exists():
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/", StaticFiles(directory=str(dist), html=True), name="frontend")
+
     return app
 
 

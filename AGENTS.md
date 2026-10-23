@@ -107,7 +107,14 @@ Working end-to-end with real signals, verified:
    rescan). Upload dialog on the Candidates header. StockEdge has no public
    API (checked) — exports remain the sanctioned path; the app just removes
    the file-management friction.
-10. Left from SEPA-terminal for later: Dhan WebSocket feed + live scanner
+10. ~~One-click launch~~ **Done (2026-10-22):** the backend serves the built
+   frontend (`frontend/dist` mounted at `/` — API routes take precedence), so
+   the whole app is one process on one port. `start_tradeup.sh` /
+   `Start TradeUp.command` (macOS) and `start_tradeup.bat` (Windows): first
+   run installs venv + npm packages, builds the frontend when stale, starts
+   uvicorn and opens the browser; a second click just opens the running app.
+   `TRADEUP_PORT` overrides the port. Non-developers never touch terminals.
+11. Left from SEPA-terminal for later: Dhan WebSocket feed + live scanner
    alerts (blocked on the owner's token), Sectors page (industry breadth),
    Excel workbook export, richer chart annotations
    (RS line, stage shading, weekly), golden signal snapshot test.

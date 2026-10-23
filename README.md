@@ -8,7 +8,15 @@ Signal → decision → paper order → outcome → review. That's the whole pro
 
 ## Quick start
 
-All commands run from the repo root unless noted. Python 3.11, Node 18+.
+**One click (recommended):**
+- **macOS:** double-click `Start TradeUp.command` (or run `./start_tradeup.sh`)
+- **Windows:** double-click `start_tradeup.bat`
+
+The script installs what's missing on first run, builds the app if needed,
+starts **one server** and opens **http://127.0.0.1:8000** in your browser.
+Close the terminal window to stop. (Port override: `TRADEUP_PORT=8080`.)
+
+**Manual (developer):** all commands run from the repo root. Python 3.11, Node 18+.
 
 ```bash
 # one-time setup
