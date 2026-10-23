@@ -10,7 +10,7 @@ PaperBroker.on_quotes):
 
 Every action appends exactly one TradeEvent via the domain state machine.
 """
-from ..domain import Trade, TradeEvent, TradeStatus, transition
+from ..domain import Trade, TradeEvent, TradeStatus, log_event, transition
 from .base import Broker
 
 CHASE_PCT = 2.0  # same default as sepa/params.py (F2F 2022: buy within 1-2% of pivot)
@@ -48,6 +48,42 @@ class PaperBroker(Broker):
         trade = self._need(trade_id, TradeStatus.PLANNED)
         transition(trade, TradeStatus.CANCELLED, "cancelled",
                    reason=reason or "cancelled by you", ts=_now())
+        self._store.save_trade(trade)
+        return trade
+
+    def modify_stop(self, trade_id: str, stop: float) -> Trade:
+        """Same rule as the proven engine (sepa/broker.py PaperBroker.modify_stop):
+        stop must be > 0 and, while planned, below the trigger. While open, below
+        the actual entry. Every move is journaled."""
+        trade = self._need(trade_id, TradeStatus.PLANNED, TradeStatus.OPEN)
+        ref = trade.entry_price if (trade.status is TradeStatus.OPEN and trade.entry_price) \
+            else trade.trigger
+        if stop <= 0 or (trade.status is TradeStatus.PLANNED and ref and stop >= ref):
+            raise ValueError("stop must be below the entry")
+        old, trade.stop = trade.stop, round(float(stop), 2)
+        log_event(trade, "stop_moved", price=trade.stop, qty=trade.qty,
+                  reason=f"stop {old} -> {trade.stop}", ts=_now())
+        self._store.save_trade(trade)
+        return trade
+
+    def exit(self, trade_id: str, price: float, reason: str = "sold (paper)") -> Trade:
+        """Manual exit: the trader books the price they would have sold at."""
+        trade = self._need(trade_id, TradeStatus.OPEN)
+        if price is None or price != price or price <= 0:
+            raise ValueError("exit price must be a positive number")
+        trade.exit_price = round(float(price), 2)
+        trade.exit_reason = reason or "sold (paper)"
+        transition(trade, TradeStatus.CLOSED, "exited",
+                   price=trade.exit_price, qty=trade.qty, reason=trade.exit_reason, ts=_now())
+        self._store.save_trade(trade)
+        return trade
+
+    def set_note(self, trade_id: str, note: str) -> Trade:
+        """Notes & lessons — part of the review loop, no status change."""
+        trade = self._store.get_trade(trade_id)
+        if trade is None:
+            raise KeyError(f"trade {trade_id} not found")
+        trade.note = (note or "").strip()
         self._store.save_trade(trade)
         return trade
 

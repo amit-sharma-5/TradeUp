@@ -77,6 +77,7 @@ class Trade:
     pivot: Optional[float] = None       # needed by the chase-limit rule
     exit_price: Optional[float] = None
     exit_reason: str = ""
+    note: str = ""                       # the trader's notes & lessons (review loop)
     events: list[TradeEvent] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -93,12 +94,27 @@ class Trade:
             "pivot": self.pivot,
             "exit_price": self.exit_price,
             "exit_reason": self.exit_reason,
+            "note": self.note,
             "events": [
                 {"ts": e.ts, "event": e.event, "price": e.price,
                  "qty": e.qty, "reason": e.reason}
                 for e in self.events
             ],
         }
+
+
+def log_event(trade: Trade, event: str, *, price: Optional[float] = None,
+              qty: Optional[int] = None, reason: str = "", ts: str) -> TradeEvent:
+    """Append an event that is NOT a status transition (e.g. stop_moved).
+
+    Status changes must go through transition(); this is for annotations the
+    journal should keep but that leave the trade's status unchanged.
+    """
+    if not event:
+        raise ValueError("event name required")
+    ev = TradeEvent(ts=ts, event=event, price=price, qty=qty, reason=reason)
+    trade.events.append(ev)
+    return ev
 
 
 def transition(trade: Trade, new_status: TradeStatus, event: str, *,

@@ -5,8 +5,8 @@ export interface Signal {
   ltp: number;
   change_pct: number;
   pivot: number;
-  buy_zone_low: number;
-  buy_zone_high: number;
+  buy_zone_low?: number;          // present on screener rows only
+  buy_zone_high?: number;
   stop: number;
   why: string;
 }
@@ -31,6 +31,7 @@ export interface Trade {
   pivot: number | null;
   exit_price: number | null;
   exit_reason: string;
+  note?: string;                  // the trader's notes & lessons
   events: TradeEvent[];
   // Derived by the journal endpoint when knowable:
   last_price?: number;            // OPEN: poller's last known quote
@@ -81,6 +82,10 @@ export const api = {
   placeOrder: (o: { symbol: string; kind: string; qty: number; limit_price: number; stop: number }) =>
     post<{ trade_id: string; status: string }>("/api/orders", o),
   cancelOrder: (id: string) => post<{ trade_id: string; status: string }>(`/api/orders/${id}/cancel`),
+  moveStop: (id: string, stop: number) => post<{ trade_id: string; stop: number }>(`/api/orders/${id}/stop`, { stop }),
+  recordExit: (id: string, price: number, reason: string) =>
+    post<{ trade_id: string; exit_price: number }>(`/api/orders/${id}/exit`, { price, reason }),
+  setNote: (id: string, note: string) => post<{ trade_id: string; note: string }>(`/api/journal/${id}`, { note }),
   chart: (symbol: string) => get<ChartData>(`/api/chart/${symbol}`),
   symbols: () => get<StockSymbol[]>("/api/symbols"),
   runBacktest: (p: { start?: string; stop_pct?: number; chase_pct?: number; max_pos?: number; grade?: string }) =>

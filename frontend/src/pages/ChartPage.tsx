@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Box, Chip, CircularProgress, Container, IconButton, Stack, Typography, Alert, Autocomplete, TextField,
+  Box, Button, Chip, CircularProgress, Container, IconButton, Stack, Typography, Alert, Autocomplete, TextField,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchIcon from "@mui/icons-material/Search";
@@ -8,7 +8,7 @@ import {
   createChart, CandlestickSeries, LineSeries, HistogramSeries,
   createSeriesMarkers, type IChartApi, ColorType, CrosshairMode,
 } from "lightweight-charts";
-import { api, ChartData, StockSymbol } from "../api";
+import { api, ChartData, Signal, StockSymbol } from "../api";
 
 const fmt = (n: number | null | undefined, d = 2) =>
   n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d });
@@ -16,7 +16,8 @@ const fmt = (n: number | null | undefined, d = 2) =>
 /** Candlestick chart for one symbol: price + MAs + volume, pivot/stop guide
  *  lines and breakout markers — the numbers behind the "why". With symbol=""
  *  it starts in search mode so any NIFTY 500 stock can be looked up. */
-export default function ChartPage({ symbol, onBack }: { symbol?: string | null; onBack?: () => void }) {
+export default function ChartPage({ symbol, onBack, onTrade }:
+  { symbol?: string | null; onBack?: () => void; onTrade?: (sig: Signal) => void }) {
   const [current, setCurrent] = useState<string | null>(symbol ?? null);
   const ref = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<ChartData | null>(null);
@@ -147,12 +148,27 @@ export default function ChartPage({ symbol, onBack }: { symbol?: string | null; 
       {!data && !err && <Box sx={{ mt: 8, textAlign: "center" }}><CircularProgress /></Box>}
       {data && (
         <>
-          <Stack direction="row" spacing={2} sx={{ mt: 1, mb: 1 }}>
+          <Stack direction="row" spacing={2} sx={{ mt: 1, mb: 1 }} alignItems="center">
             {data.pivot != null && <Typography variant="caption">Buy point ₹{fmt(data.pivot)}</Typography>}
             {data.stop != null && <Typography variant="caption">Stop ₹{fmt(data.stop)}</Typography>}
             <Typography variant="caption" color="text.secondary">
               {data.breakouts.length} breakout{data.breakouts.length === 1 ? "" : "s"} on chart
             </Typography>
+            <Box flexGrow={1} />
+            {onTrade && (
+              <Button size="small" variant="outlined" onClick={() => {
+                const last = data.candles[data.candles.length - 1].close;
+                const pivot = data.pivot ?? last;
+                onTrade({
+                  symbol: data.symbol, name: data.symbol, category: "Watch",
+                  ltp: last, change_pct: 0, pivot,
+                  stop: data.stop ?? Math.round(pivot * 0.93 * 100) / 100,
+                  why: "Manual paper trade from chart (not in today's screener)",
+                });
+              }}>
+                Paper trade
+              </Button>
+            )}
           </Stack>
           <Box ref={ref} sx={{ height: 380, border: 1, borderColor: "divider", borderRadius: 1 }} />
         </>

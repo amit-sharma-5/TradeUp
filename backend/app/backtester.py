@@ -13,7 +13,7 @@ import threading
 import time
 import traceback
 
-from .config import SEPA_ROOT
+from . import config
 
 # breakdown tables we expose (SEPA computes more: period, rs bucket, volume…)
 _BREAKDOWNS = ("grade", "type", "base", "reason")
@@ -71,10 +71,11 @@ class Backtester:
             chase_pct: float | None = None, max_pos: int = 8,
             grade: str | None = None) -> dict:
         """Synchronous run — used by tests and the background thread."""
-        if not (SEPA_ROOT / "sepa" / "backtest.py").exists():
-            raise FileNotFoundError(f"SEPA engine not found at {SEPA_ROOT}")
-        if str(SEPA_ROOT) not in sys.path:
-            sys.path.insert(0, str(SEPA_ROOT))
+        root = config.SEPA_ROOT
+        if not (root / "sepa" / "backtest.py").exists():
+            raise FileNotFoundError(f"SEPA engine not found at {root}")
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
         from dataclasses import replace
         from sepa import backtest, scan, store as sepa_store
         from sepa.params import DEFAULT

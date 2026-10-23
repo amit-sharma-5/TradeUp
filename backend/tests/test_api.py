@@ -118,3 +118,34 @@ def test_journal_pnl_fields(tmp_path, monkeypatch):
     assert t["status"] == "CLOSED"
     assert t["pnl"] == round((5200.0 - 5600.0) * 10, 2)
     assert t["pnl_pct"] == round((5200.0 / 5600.0 - 1) * 100, 2)
+
+
+def test_move_stop_and_record_exit_endpoints(client):
+    tid = client.post("/api/orders", json={
+        "symbol": "PERSISTENT", "kind": "LIMIT", "qty": 10,
+        "limit_price": 5700.0, "stop": 5210.0}).json()["trade_id"]
+    r = client.post(f"/api/orders/{tid}/stop", json={"stop": 5500.0})
+    assert r.status_code == 200 and r.json()["stop"] == 5500.0
+    # exit while PLANNED is refused
+    assert client.post(f"/api/orders/{tid}/exit",
+                       json={"price": 5900.0}).status_code == 422
+
+
+def test_note_endpoint(client):
+    tid = client.post("/api/orders", json={
+        "symbol": "PERSISTENT", "kind": "LIMIT", "qty": 10,
+        "limit_price": 5700.0, "stop": 5210.0}).json()["trade_id"]
+    r = client.patch(f"/api/journal/{tid}", json={"note": "Chased a little — lesson noted"})
+    assert r.status_code == 200 and r.json()["note"] == "Chased a little — lesson noted"
+    trade = next(t for t in client.get("/api/journal").json()["trades"] if t["id"] == tid)
+    assert trade["note"] == "Chased a little — lesson noted"
+    assert client.patch("/api/journal/T9999", json={"note": "x"}).status_code == 404
+
+
+def test_order_on_any_stock_not_just_candidates(client):
+    """Manual paper trades from the chart page: any symbol the price store knows."""
+    r = client.post("/api/orders", json={
+        "symbol": "RELIANCE", "kind": "LIMIT", "qty": 1,
+        "limit_price": 1000.0, "stop": 900.0})
+    # mock source has no price store → unknown symbol stays a clean 404
+    assert r.status_code == 404

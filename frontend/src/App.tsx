@@ -9,13 +9,15 @@ import JournalPage from "./pages/JournalPage";
 import ChartPage from "./pages/ChartPage";
 import BacktestPage from "./pages/BacktestPage";
 import LoginPage from "./pages/LoginPage";
-import { api, UnauthorizedError } from "./api";
+import TradePage from "./pages/TradePage";
+import { api, Signal, UnauthorizedError } from "./api";
 
 export default function App() {
   const [page, setPage] = useState<"candidates" | "journal" | "chart" | "backtest">("candidates");
   const [tick, setTick] = useState(0);
   const [locked, setLocked] = useState(false);
   const [chartSym, setChartSym] = useState<string | null>(null);
+  const [tradeSig, setTradeSig] = useState<Signal | null>(null);
   useEffect(() => {
     const iv = setInterval(() => setTick((t) => t + 1), 5000); // Phase 1 polling; WS later
     return () => clearInterval(iv);
@@ -27,7 +29,9 @@ export default function App() {
   }, [tick]);
 
   if (locked) return <LoginPage onDone={() => setLocked(false)} />;
-  if (chartSym) return <ChartPage symbol={chartSym} onBack={() => setChartSym(null)} />;
+  if (tradeSig) return <TradePage signal={tradeSig} onDone={() => setTradeSig(null)} />;
+  if (chartSym) return <ChartPage symbol={chartSym} onBack={() => setChartSym(null)} onTrade={setTradeSig} />;
+  if (page === "chart") return <ChartPage onTrade={setTradeSig} />;
 
   return (
     <Box sx={{ pb: 8 }}>
@@ -40,7 +44,6 @@ export default function App() {
 
       {page === "candidates" && <CandidatesPage tick={tick} onChart={setChartSym} />}
       {page === "journal" && <JournalPage tick={tick} onChart={setChartSym} />}
-      {page === "chart" && <ChartPage />}
       {page === "backtest" && <BacktestPage />}
 
       <BottomNavigation

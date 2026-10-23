@@ -101,3 +101,42 @@ def test_place_rejects_invalid_orders(broker, persistent_sig):
         broker.place("PERSISTENT", "LIMIT", 0, 5700.0, 5200.0)     # qty <= 0
     with pytest.raises(ValueError):
         broker.place("PERSISTENT", "LIMIT", 10, 5700.0, 5800.0)    # stop above entry
+
+def test_modify_stop_planned_and_open(broker, store, persistent_sig):
+    t = broker.place("PERSISTENT", "LIMIT", 10, 5700.0, persistent_sig.stop)
+    moved = broker.modify_stop(t.id, 5500.0)                    # planned: below trigger
+    assert moved.stop == 5500.0
+    assert moved.events[-1].event == "stop_moved"
+    broker.on_quotes({"PERSISTENT": 5600.0})                    # fill
+    moved2 = broker.modify_stop(t.id, 5605.0)                   # open: below entry
+    assert moved2.stop == 5605.0
+    assert [e.event for e in store.get_trade(t.id).events] == \
+        ["order_placed", "stop_moved", "filled", "stop_moved"]
+
+
+def test_modify_stop_validations(broker, persistent_sig):
+    t = broker.place("PERSISTENT", "LIMIT", 10, 5700.0, persistent_sig.stop)
+    with pytest.raises(ValueError):
+        broker.modify_stop(t.id, 5800.0)                        # planned: >= trigger
+    with pytest.raises(ValueError):
+        broker.modify_stop(t.id, 0)
+
+
+def test_manual_exit_closes_trade_with_exited_event(broker, store, persistent_sig):
+    t = broker.place("PERSISTENT", "LIMIT", 10, 5700.0, persistent_sig.stop)
+    broker.on_quotes({"PERSISTENT": 5600.0})
+    out = broker.exit(t.id, 5900.0, "target hit")
+    assert out.status is TradeStatus.CLOSED
+    assert out.exit_price == 5900.0 and out.exit_reason == "target hit"
+    assert store.get_trade(t.id).events[-1].event == "exited"
+
+
+def test_exit_rejected_when_not_open(broker, persistent_sig):
+    t = broker.place("PERSISTENT", "LIMIT", 10, 5700.0, persistent_sig.stop)
+    with pytest.raises(ValueError):
+        broker.exit(t.id, 5900.0)                               # still PLANNED
+
+
+def test_set_note_on_any_trade(broker, store, persistent_sig):
+    t = broker.place("PERSISTENT", "LIMIT", 10, 5700.0, persistent_sig.stop)
+    assert broker.set_note(t.id, "followed the system, will do better").note.startswith("followed")

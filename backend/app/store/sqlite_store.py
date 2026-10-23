@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS trades (
     id TEXT PRIMARY KEY, symbol TEXT NOT NULL, status TEXT NOT NULL,
     qty INTEGER NOT NULL, order_kind TEXT NOT NULL DEFAULT 'BUY_STOP',
     trigger REAL, entry_price REAL, stop REAL, pivot REAL,
-    exit_price REAL, exit_reason TEXT NOT NULL DEFAULT '');
+    exit_price REAL, exit_reason TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS trade_events (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,     -- append-only, never edited
     trade_id TEXT NOT NULL REFERENCES trades(id),
@@ -35,9 +36,16 @@ class SqliteStore(Store):
         self._conn = sqlite3.connect(self._path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
+        self._migrate()
         self._conn.commit()
         self._lock = threading.Lock()             # SQLite + threads: serialize writes
         self._events_on_disk: dict[str, int] = self._count_events()
+
+    def _migrate(self):
+        """Add columns introduced after a DB was created (light-touch, additive only)."""
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(trades)")}
+        if "note" not in cols:
+            self._conn.execute("ALTER TABLE trades ADD COLUMN note TEXT NOT NULL DEFAULT ''")
 
     def _count_events(self) -> dict[str, int]:
         rows = self._conn.execute(
@@ -58,10 +66,11 @@ class SqliteStore(Store):
         with self._lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO trades (id,symbol,status,qty,order_kind,trigger,"
-                "entry_price,stop,pivot,exit_price,exit_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                "entry_price,stop,pivot,exit_price,exit_reason,note) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (trade.id, trade.symbol, trade.status.value, trade.qty, trade.order_kind,
                  trade.trigger, trade.entry_price, trade.stop, trade.pivot,
-                 trade.exit_price, trade.exit_reason))
+                 trade.exit_price, trade.exit_reason, trade.note))
             start = self._events_on_disk.get(trade.id, 0)
             if len(trade.events) > start:          # append only the new events
                 self._conn.executemany(
@@ -90,7 +99,8 @@ class SqliteStore(Store):
             for row in csv.DictReader(fh):
                 self._conn.execute(
                     "INSERT INTO trades (id,symbol,status,qty,order_kind,trigger,"
-                    "entry_price,stop,pivot,exit_price,exit_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    "entry_price,stop,pivot,exit_price,exit_reason,note) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (row["id"], row["symbol"], row["status"], int(row["qty"]),
                      row["order_kind"] or "BUY_STOP",
                      float(row["trigger"]) if row["trigger"] else None,
@@ -98,7 +108,7 @@ class SqliteStore(Store):
                      float(row["stop"]) if row["stop"] else None,
                      float(row["pivot"]) if row["pivot"] else None,
                      float(row["exit_price"]) if row["exit_price"] else None,
-                     row["exit_reason"]))
+                     row["exit_reason"], row.get("note", "")))
         n = 0
         if events_f.exists():
             with open(events_f, newline="", encoding="utf-8") as fh:
@@ -120,6 +130,7 @@ class SqliteStore(Store):
 
     def _count(self) -> int:
         return self._conn.execute("SELECT COUNT(*) c FROM trades").fetchone()["c"]
+
     def _hydrate(self, row: sqlite3.Row) -> Trade:
         events = [TradeEvent(ts=r["ts"], event=r["event"], price=r["price"],
                              qty=r["qty"], reason=r["reason"])
@@ -131,4 +142,6 @@ class SqliteStore(Store):
                      order_kind=row["order_kind"], trigger=row["trigger"],
                      entry_price=row["entry_price"], stop=row["stop"],
                      pivot=row["pivot"], exit_price=row["exit_price"],
-                     exit_reason=row["exit_reason"], events=events)
+                     exit_reason=row["exit_reason"],
+                     note=row["note"] if "note" in row.keys() else "",
+                     events=events)

@@ -17,7 +17,7 @@ from .backtester import Backtester
 from .broker.paper import PaperBroker
 from .chartdata import build_chart
 from .symbols import get_symbols
-from .domain import Signal, TradeStatus
+from .domain import Category, Signal, TradeStatus
 from .jobs.notify import send as notify_send
 from .jobs.quote_poller import PriceCache, QuotePoller
 from .jobs.scheduler import Scheduler, run_daily_job
@@ -69,6 +69,16 @@ def create_app(start_background: bool = True, journal_dir=None,
 
     class LoginIn(BaseModel):
         passphrase: str
+
+    class StopIn(BaseModel):
+        stop: float
+
+    class ExitIn(BaseModel):
+        price: float
+        reason: str = "sold (paper)"
+
+    class NoteIn(BaseModel):
+        note: str
 
     class BacktestIn(BaseModel):
         start: str = "2012-01-01"
@@ -133,11 +143,21 @@ def create_app(start_background: bool = True, journal_dir=None,
             raise HTTPException(503, str(e))
 
     def _signal_for(symbol: str) -> Signal:
+        """Today's screener entry if there is one; otherwise any NIFTY 500 stock
+        from the price store (manual paper trades are part of the practice loop)."""
         sig = next((s for s in signals.get_candidates()
                     if s.symbol == symbol.upper()), None)
-        if sig is None:
+        if sig is not None:
+            return sig
+        try:
+            c = build_chart(symbol.upper())
+        except FileNotFoundError:
             raise HTTPException(404, f"unknown symbol {symbol}")
-        return sig
+        last = c["candles"][-1]["close"] if c["candles"] else 0.0
+        return Signal(symbol=c["symbol"], name=c["symbol"], category=Category.WATCH,
+                      ltp=last, change_pct=0.0, pivot=c["pivot"] or last,
+                      stop=c["stop"] or round(last * 0.93, 2),
+                      why="Manual paper trade from chart (not in today's screener)")
 
     @app.post("/api/orders", status_code=201)
     def place_order(o: OrderIn):
@@ -158,6 +178,35 @@ def create_app(start_background: bool = True, journal_dir=None,
         except ValueError as e:
             raise HTTPException(409, str(e))
         return {"trade_id": trade.id, "status": trade.status.value}
+
+    @app.post("/api/orders/{trade_id}/stop")
+    def move_stop(trade_id: str, body: StopIn):
+        try:
+            trade = broker.modify_stop(trade_id, body.stop)
+        except KeyError as e:
+            raise HTTPException(404, str(e))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        return {"trade_id": trade.id, "status": trade.status.value, "stop": trade.stop}
+
+    @app.post("/api/orders/{trade_id}/exit")
+    def record_exit(trade_id: str, body: ExitIn):
+        try:
+            trade = broker.exit(trade_id, body.price, body.reason)
+        except KeyError as e:
+            raise HTTPException(404, str(e))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        return {"trade_id": trade.id, "status": trade.status.value,
+                "exit_price": trade.exit_price}
+
+    @app.patch("/api/journal/{trade_id}")
+    def edit_note(trade_id: str, body: NoteIn):
+        try:
+            trade = broker.set_note(trade_id, body.note)
+        except KeyError as e:
+            raise HTTPException(404, str(e))
+        return {"trade_id": trade.id, "note": trade.note}
 
     @app.get("/api/symbols")
     def symbols():

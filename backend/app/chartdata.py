@@ -7,14 +7,15 @@ pivot and breakout marks — the same numbers the screener is built on.
 import sys
 from pathlib import Path
 
-from .config import SEPA_ROOT
+from . import config
 
 
 def _ensure_sepa():
-    if not (SEPA_ROOT / "sepa" / "store.py").exists():
-        raise FileNotFoundError(f"SEPA engine not found at {SEPA_ROOT}")
-    if str(SEPA_ROOT) not in sys.path:
-        sys.path.insert(0, str(SEPA_ROOT))
+    root = config.SEPA_ROOT
+    if not (root / "sepa" / "store.py").exists():
+        raise FileNotFoundError(f"SEPA engine not found at {root}")
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
 
 
 def build_chart(symbol: str, days: int = 400) -> dict:

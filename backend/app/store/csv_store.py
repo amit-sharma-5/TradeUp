@@ -17,7 +17,7 @@ from ..domain import Trade, TradeEvent, TradeStatus
 from .base import Store
 
 _TRADE_COLS = ["id", "symbol", "status", "qty", "order_kind", "trigger",
-               "entry_price", "stop", "pivot", "exit_price", "exit_reason"]
+               "entry_price", "stop", "pivot", "exit_price", "exit_reason", "note"]
 _EVENT_COLS = ["trade_id", "ts", "event", "price", "qty", "reason"]
 
 
@@ -49,7 +49,8 @@ class CsvStore(Store):
                         order_kind=row["order_kind"] or "BUY_STOP",
                         trigger=_num(row["trigger"]), entry_price=_num(row["entry_price"]),
                         stop=_num(row["stop"]), pivot=_num(row["pivot"]),
-                        exit_price=_num(row["exit_price"]), exit_reason=row["exit_reason"])
+                        exit_price=_num(row["exit_price"]), exit_reason=row["exit_reason"],
+                        note=row.get("note", ""))
                     self._trades[t.id] = t
         if events_f.exists():
             with open(events_f, newline="", encoding="utf-8") as fh:
@@ -105,7 +106,7 @@ class CsvStore(Store):
             for t in sorted(self._trades.values(), key=lambda t: t.id):
                 w.writerow([t.id, t.symbol, t.status.value, t.qty, t.order_kind,
                             _fmt(t.trigger), _fmt(t.entry_price), _fmt(t.stop),
-                            _fmt(t.pivot), _fmt(t.exit_price), t.exit_reason])
+                            _fmt(t.pivot), _fmt(t.exit_price), t.exit_reason, t.note])
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, self._dir / "trades.csv")

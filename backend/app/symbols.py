@@ -6,15 +6,16 @@ filters client-side as you type.
 """
 import sys
 
-from .config import SEPA_ROOT
+from . import config
 
 
 def get_symbols() -> list[dict]:
     """[{symbol, name, industry}] for every NIFTY 500 member."""
-    if not (SEPA_ROOT / "sepa" / "universe.py").exists():
-        raise FileNotFoundError(f"SEPA engine not found at {SEPA_ROOT}")
-    if str(SEPA_ROOT) not in sys.path:
-        sys.path.insert(0, str(SEPA_ROOT))
+    root = config.SEPA_ROOT
+    if not (root / "sepa" / "universe.py").exists():
+        raise FileNotFoundError(f"SEPA engine not found at {root}")
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
     from sepa.universe import current_nifty500
 
     df = current_nifty500()                      # cached CSV; refresh=False default
