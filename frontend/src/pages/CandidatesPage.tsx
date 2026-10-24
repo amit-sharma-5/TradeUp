@@ -73,7 +73,7 @@ export default function CandidatesPage({ tick, onChart }: { tick: number; onChar
         </Tooltip>
       </Stack>
       {seOpen && <StockEdgeDialog open={seOpen} close={() => setSeOpen(false)} />}
-      {health?.signal_source === "sepa" && <WatchlistsSection />}
+      {health?.signal_source === "sepa" && <WatchlistsSection onChart={onChart} />}
       {GROUPS.map((g) => {
         const rows = signals.filter((s) => s.category === g);
         if (!rows.length) return null;

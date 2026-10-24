@@ -65,13 +65,14 @@ def yahoo_quotes(symbols: list[str]) -> dict[str, float]:
 class QuotePoller:
     def __init__(self, broker: Broker, store: Store, fetch=yahoo_quotes,
                  interval: int = QUOTE_INTERVAL, price_cache: PriceCache | None = None,
-                 notify=None):
+                 notify=None, extra_symbols=None):
         self._broker = broker
         self._store = store
         self._fetch = fetch
         self._interval = interval
         self._cache = price_cache
         self._notify = notify                  # callable(str) or None; called per fill event
+        self._extra = extra_symbols            # callable -> extra symbols worth polling (My Watchlist)
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._last_ok: str = ""
@@ -79,7 +80,13 @@ class QuotePoller:
 
     def poll_once(self) -> list[dict]:
         """One fill pass: fetch quotes for active-trade symbols, apply fill rules."""
-        symbols = sorted({t.symbol for t in self._store.active_trades()})
+        symbols = {t.symbol for t in self._store.active_trades()}
+        if self._extra:
+            try:
+                symbols |= set(self._extra())
+            except Exception:
+                traceback.print_exc()          # a broken watchlist must not stop fills
+        symbols = sorted(symbols)
         if not symbols:
             return []                       # nothing to fill → no network call at all
         quotes = self._fetch(symbols)

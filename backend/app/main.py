@@ -23,6 +23,7 @@ from .stockedge_admin import save_upload, status as stockedge_status
 from .symbols import get_symbols
 from .ticket import plan_for
 from .watchlists import from_screen as watchlists_from_screen
+from . import watchlist
 from .symbols import get_symbols
 from .domain import Category, Signal, TradeStatus
 from .jobs.notify import send as notify_send
@@ -62,7 +63,8 @@ def create_app(start_background: bool = True, journal_dir=None,
                        allow_methods=["*"], allow_headers=["*"])
     scheduler = Scheduler(signals) if source_name == "sepa" else None
     prices = PriceCache()
-    poller = (QuotePoller(broker, store, price_cache=prices, notify=notify_send)
+    poller = (QuotePoller(broker, store, price_cache=prices, notify=notify_send,
+                          extra_symbols=watchlist.symbols)
               if source_name == "sepa" else None)
     backtester = Backtester()
     app.state.store, app.state.broker, app.state.prices = store, broker, prices
@@ -92,6 +94,9 @@ def create_app(start_background: bool = True, journal_dir=None,
         equity: float | None = None
         risk_pct: float | None = None
         max_pos_pct: float | None = None
+
+    class WatchAddIn(BaseModel):
+        symbol: str
 
     class BacktestIn(BaseModel):
         start: str = "2012-01-01"
@@ -239,6 +244,33 @@ def create_app(start_background: bool = True, journal_dir=None,
             signals.refresh_async()
             return {"asof": "", "stale": True}
         return watchlists_from_screen(*out)
+
+    @app.get("/api/watchlist")
+    def get_watchlist():
+        """My Watchlist: the trader's personal list with live prices (the quote
+        poller refreshes these every cycle)."""
+        if source_name != "sepa":
+            raise HTTPException(503, "watchlist needs the SEPA engine")
+        try:
+            names = {s["symbol"]: s["name"] for s in get_symbols()}
+        except Exception:
+            names = {}
+        return {"symbols": watchlist.rows(cache_get=prices.get, names=names)}
+
+    @app.post("/api/watchlist")
+    def add_to_watchlist(body: WatchAddIn):
+        if source_name != "sepa":
+            raise HTTPException(503, "watchlist needs the SEPA engine")
+        try:
+            store_syms = {s["symbol"] for s in get_symbols()}
+            watchlist.add(body.symbol, price_store_symbols=store_syms)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        return {"symbols": watchlist.symbols()}
+
+    @app.delete("/api/watchlist/{symbol}")
+    def remove_from_watchlist(symbol: str):
+        return {"symbols": watchlist.remove(symbol)}
 
     @app.get("/api/settings")
     def get_settings():

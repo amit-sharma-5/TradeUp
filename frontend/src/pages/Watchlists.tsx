@@ -4,11 +4,12 @@ import {
   TableCell, TableContainer, TableHead, TableRow,
 } from "@mui/material";
 import { api, Watchlists, WatchlistRow } from "../api";
+import MyWatchlist from "./MyWatchlist";
 
 const fmt = (n: number | null | undefined, d = 1) =>
   n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d });
 
-const TABS = ["Signals", "Uptrend (no base)", "Leaders", "Sell-Avoid", "Earnings x Tech"] as const;
+const TABS = ["Signals", "My Watch", "Uptrend (no base)", "Leaders", "Sell-Avoid", "Earnings x Tech"] as const;
 const LABEL: Record<string, string> = {
   "Uptrend (no base)": "Uptrend",
   "Sell-Avoid": "Sell / Avoid",
@@ -38,8 +39,8 @@ function StageChip({ stage }: { stage: number | null | undefined }) {
                label={`St ${stage}`} sx={{ height: 22, fontSize: 12 }} />;
 }
 
-/** The screener's other lists — Uptrend, Leaders, Sell/Avoid, Earnings × Tech. */
-export default function WatchlistsSection() {
+/** The screener's other lists + the trader's personal watchlist. */
+export default function WatchlistsSection({ onChart }: { onChart?: (symbol: string) => void }) {
   const [wl, setWl] = useState<Watchlists | null>(null);
   const [tab, setTab] = useState(0);
   const [err, setErr] = useState("");
@@ -56,7 +57,9 @@ export default function WatchlistsSection() {
       <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto"
             sx={{ mb: 1.5, "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 600 } }}>
         {TABS.map((t) => {
-          const count = t === "Signals" ? null : ((wl as unknown as Record<string, WatchlistRow[]>)[t] ?? []).length;
+          const count = t === "Signals" || t === "My Watch"
+            ? null
+            : ((wl as unknown as Record<string, WatchlistRow[]>)[t] ?? []).length;
           return <Tab key={t} label={count == null ? t : `${LABEL[t] ?? t} · ${count}`} />;
         })}
       </Tabs>
@@ -70,6 +73,8 @@ export default function WatchlistsSection() {
             ))}
           </Stack>
         )
+      ) : tab === 1 ? (
+        <MyWatchlist onChart={onChart} />
       ) : (
         <RowsFor tab={TABS[tab]} rows={(wl as unknown as Record<string, WatchlistRow[]>)[TABS[tab]] ?? []} />
       )}

@@ -104,6 +104,14 @@ export const api = {
   news: (symbol: string) => get<NewsItem[] | { error: string }>(`/api/news/${symbol}`),
   journalCsv: () => "/api/journal.csv" as string,
   stockedge: () => get<StockEdgeStatus>("/api/stockedge"),
+  watchlist: () => get<{ symbols: WatchRow[] }>("/api/watchlist"),
+  addWatch: (symbol: string) => post<{ symbols: string[] }>("/api/watchlist", { symbol }),
+  removeWatch: (symbol: string) =>
+    fetch(`/api/watchlist/${symbol}`, { method: "DELETE" }).then((r) => {
+      if (r.status === 401) throw new UnauthorizedError();
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<{ symbols: string[] }>;
+    }),
   uploadStockedge: (file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -118,6 +126,7 @@ export const api = {
 };
 
 export interface StockEdgeFile { name: string; size_kb: number; modified: string; }
+export interface WatchRow { symbol: string; name: string; ltp: number | null; change_pct: number | null; }
 export interface StockEdgeStatus {
   files: StockEdgeFile[];
   latest: { file?: string; rows?: number; symbols?: number | null; se_date?: string | null; error?: string };
