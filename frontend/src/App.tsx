@@ -4,20 +4,21 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import CandlestickChartIcon from "@mui/icons-material/CandlestickChart";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CandidatesPage from "./pages/CandidatesPage";
 import JournalPage from "./pages/JournalPage";
 import ChartPage from "./pages/ChartPage";
 import BacktestPage from "./pages/BacktestPage";
+import AboutPage from "./pages/AboutPage";
 import LoginPage from "./pages/LoginPage";
 import TradePage from "./pages/TradePage";
 import { api, Signal, UnauthorizedError } from "./api";
 
-type Page = "candidates" | "journal" | "chart" | "backtest";
+type Page = "candidates" | "journal" | "chart" | "backtest" | "about";
 type View = { page: Page; chartSym: string | null; tradeSig: Signal | null };
 
 export default function App() {
-  const [view, setView] = useState<View>({ page: "candidates", chartSym: null, tradeSig: null });
-  const [tick, setTick] = useState(0);
+  const [view, setView] = useState<View>({ page: "candidates", chartSym: null, tradeSig: null });  const [tick, setTick] = useState(0);
   const [locked, setLocked] = useState(false);
   const stack = useRef<View[]>([]);
   const viewRef = useRef(view);
@@ -74,6 +75,7 @@ export default function App() {
       {page === "journal" && <JournalPage tick={tick} onChart={(s) => go({ chartSym: s })} />}
       {page === "chart" && <ChartPage onTrade={(s) => go({ tradeSig: s })} />}
       {page === "backtest" && <BacktestPage />}
+      {page === "about" && <AboutPage />}
 
       <BottomNavigation
         value={page}
@@ -84,6 +86,7 @@ export default function App() {
         <BottomNavigationAction label="Journal" value="journal" icon={<ReceiptLongIcon />} />
         <BottomNavigationAction label="Chart" value="chart" icon={<CandlestickChartIcon />} />
         <BottomNavigationAction label="Backtest" value="backtest" icon={<QueryStatsIcon />} />
+        <BottomNavigationAction label="About" value="about" icon={<InfoOutlinedIcon />} />
       </BottomNavigation>
     </Box>
   );

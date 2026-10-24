@@ -6,6 +6,40 @@ Signal → decision → paper order → outcome → review. That's the whole pro
 - **Architecture:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — decisions (D1–D6), layout, testing plan
 - **Trading guide (plain English):** [docs/TRADING-GUIDE.md](docs/TRADING-GUIDE.md) — every concept explained for a new trader
 
+## What makes it different
+
+Almost every individual feature here exists in some other app. The point of
+TradeUp is the **combination**: it runs *your* validated methodology end to end,
+and closes the feedback loop that no commercial product offers.
+
+| Capability | Groww / Zerodha | Chartink | StockEdge | TradingView | Streak | **TradeUp** |
+|---|---|---|---|---|---|---|
+| Charts, search, paper orders | ✅ | ❌ | ❌ | ✅ (best) | basic | ✅ |
+| Stock screeners | basic | ✅ generic | ✅ generic | community | ✅ | ✅ **your exact rules** |
+| Your methodology as executable rules (Trend Template, Stage 2, VCP, RS) | ❌ | DIY | ❌ | DIY | DIY | ✅ imported & backtested |
+| Backtest of *your exact* parameters (stops, chase, sizing) | ❌ | ❌ | ❌ | paid tiers | generic | ✅ |
+| **Decision-time "why" frozen with every trade** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ event-sourced journal |
+| **Review loop** — did I follow the system? was the system right? | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ the core product |
+| Paper fills using the **same rules as the backtest** | generic | ❌ | ❌ | generic | ✅ | ✅ |
+| Private: local data, no subscription, fully hackable | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+
+The one-sentence version: **other apps tell you what stocks look interesting;
+TradeUp is the only tool that runs your validated system, makes you trade it on
+paper with identical rules, and then shows you the full story — why you entered,
+what happened, and what you should learn.**
+
+Three concrete anchors:
+1. **The rules are imported, not invented.** The SEPA engine (Minervini's method
+   as recorded and backtested on years of NSE data in the sibling repo) is a
+   library here — the screener, sizing and fills all use the same numbers the
+   backtest used (e.g. 1,207 simulated trades since 2012: 41.6% CAGR, −18.5% max
+   drawdown vs Nifty 500's 12% / −38%).
+2. **The journal is event-sourced.** Every trade keeps its decision-time "why",
+   every fill/stop-move/exit as an append-only timeline, plus your notes and
+   lessons. Reviewing is a first-class feature, not an afterthought.
+3. **It's yours.** One machine, your data in plain CSV/SQLite, no cloud, no
+   subscription, and every rule threshold is inspectable in one params file.
+
 ## Quick start
 
 **One click (recommended):**
