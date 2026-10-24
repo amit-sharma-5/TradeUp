@@ -16,7 +16,9 @@ def test_settings_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(s, "_FILE", tmp_path / "settings.json")
     assert s.get()["risk_pct"] == 1.25                 # engine default
     out = s.put({"equity": 2500000, "risk_pct": 1.0})
-    assert out == {"equity": 2500000.0, "risk_pct": 1.0, "max_pos_pct": 20.0}
+    assert (out["equity"], out["risk_pct"], out["max_pos_pct"]) == (2500000.0, 1.0, 20.0)
+    assert out["auto_paper"] is False                  # safe default: no auto orders
+    assert out["active_profile"] == "default"
     assert s.get()["equity"] == 2500000.0              # survives a "restart"
 
 

@@ -28,6 +28,9 @@ from .symbols import get_symbols
 from .domain import Category, Signal, TradeStatus
 from .jobs.notify import send as notify_send
 from .jobs.quote_poller import PriceCache, QuotePoller
+from .jobs import auto_paper
+from . import profiles as rule_profiles
+from . import secrets as app_secrets
 from .jobs.scheduler import Scheduler, run_daily_job
 from .signals.adapter import SepaSignalSource, SepaUnavailable
 from .signals.mock import MockSignalSource
@@ -52,7 +55,9 @@ def create_app(start_background: bool = True, journal_dir=None,
 
     # Signals: the real SEPA engine when available, mock otherwise (CI, fresh clones).
     if (config.SEPA_ROOT / "sepa" / "scan.py").exists():
-        signals: object = SepaSignalSource(config.SEPA_ROOT)
+        signals: object = SepaSignalSource(
+            config.SEPA_ROOT,
+            params_get=lambda: rule_profiles.params_for(app_settings.get()["active_profile"]))
         source_name = "sepa"
     else:
         signals = MockSignalSource()
@@ -66,6 +71,23 @@ def create_app(start_background: bool = True, journal_dir=None,
     poller = (QuotePoller(broker, store, price_cache=prices, notify=notify_send,
                           extra_symbols=watchlist.symbols)
               if source_name == "sepa" else None)
+
+    # ⚡ Buy Now: after every completed scan, auto-place paper orders for new
+    # Strong Buy / Buy candidates when the trader enabled it in settings.
+    if source_name == "sepa":
+        def _after_scan():
+            auto_paper.run_after_scan(
+                signals.get_candidates(), broker, app_settings.get, _plan_fn)
+        signals.on_scan = _after_scan
+
+    def _plan_fn(pivot: float, entry: float, stop: float) -> dict:
+        """The engine's validated sizing rule, fed by TradeUp settings."""
+        import sys as _sys
+        if str(config.SEPA_ROOT) not in _sys.path:
+            _sys.path.insert(0, str(config.SEPA_ROOT))
+        from sepa import trading
+        s = {**trading.DEFAULTS, "equity": app_settings.get()["equity"]}
+        return trading.plan(pivot, entry=entry, stop=stop, s=s)
     backtester = Backtester()
     app.state.store, app.state.broker, app.state.prices = store, broker, prices
     app.state.signals = signals
@@ -94,6 +116,16 @@ def create_app(start_background: bool = True, journal_dir=None,
         equity: float | None = None
         risk_pct: float | None = None
         max_pos_pct: float | None = None
+        auto_paper: bool | None = None
+        active_profile: str | None = None
+
+    class ProfileIn(BaseModel):
+        name: str
+        params: dict | None = None
+
+    class DhanIn(BaseModel):
+        client_id: str
+        access_token: str
 
     class WatchAddIn(BaseModel):
         symbol: str
@@ -104,6 +136,7 @@ def create_app(start_background: bool = True, journal_dir=None,
         chase_pct: float | None = None
         max_pos: int = 8
         grade: str | None = None
+        profile: str | None = None
 
     @app.post("/api/login")
     def login(body: LoginIn, response: Response):
@@ -280,6 +313,40 @@ def create_app(start_background: bool = True, journal_dir=None,
     def put_settings(body: SettingsIn):
         return app_settings.put(body.dict(exclude_none=True))
 
+    @app.get("/api/profiles")
+    def get_profiles():
+        return {"profiles": rule_profiles.list_profiles(),
+                "active": app_settings.get()["active_profile"]}
+
+    @app.post("/api/profiles")
+    def save_profile(body: ProfileIn):
+        try:
+            rule_profiles.save(body.name, body.params or {})
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        return {"profiles": rule_profiles.list_profiles(),
+                "active": app_settings.get()["active_profile"]}
+
+    @app.delete("/api/profiles/{name}")
+    def delete_profile(name: str):
+        try:
+            rule_profiles.delete(name, app_settings.get()["active_profile"])
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        return {"profiles": rule_profiles.list_profiles()}
+
+    @app.get("/api/secrets/dhan")
+    def dhan_status():
+        """Masked Dhan credential status — never the real values."""
+        return app_secrets.status()
+
+    @app.post("/api/secrets/dhan")
+    def dhan_save(body: DhanIn):
+        try:
+            return app_secrets.set_dhan(body.client_id, body.access_token)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+
     @app.get("/api/ticket/{symbol}")
     def ticket(symbol: str, entry: float | None = None, stop: float | None = None,
                equity: float | None = None):
@@ -367,12 +434,15 @@ def create_app(start_background: bool = True, journal_dir=None,
     @app.post("/api/backtest")
     def run_backtest(body: BacktestIn):
         """Starts the SEPA backtest in the background (seconds warm, minutes cold).
-        Poll GET /api/backtest for the result."""
+        Poll GET /api/backtest for the result. `profile` runs a named rule version."""
         if source_name != "sepa":
             raise HTTPException(503, "backtest needs the SEPA engine (mock source is active)")
+        if body.profile and rule_profiles.get(body.profile) is None:
+            raise HTTPException(404, f"unknown rule profile {body.profile}")
         started = backtester.run_async(start=body.start, stop_pct=body.stop_pct,
                                        chase_pct=body.chase_pct,
-                                       max_pos=body.max_pos, grade=body.grade or None)
+                                       max_pos=body.max_pos, grade=body.grade,
+                                       profile=body.profile)
         return {"started": started, **backtester.status}
 
     @app.get("/api/backtest")

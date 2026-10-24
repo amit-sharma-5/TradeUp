@@ -10,7 +10,10 @@ from pathlib import Path
 from .config import DATA_DIR
 
 _FILE = DATA_DIR / "settings.json"
-_DEFAULTS = {"equity": 1000000.0, "risk_pct": 1.25, "max_pos_pct": 20.0}
+_DEFAULTS = {"equity": 1000000.0, "risk_pct": 1.25, "max_pos_pct": 20.0,
+             "auto_paper": False, "active_profile": "default"}
+_TYPES = {"equity": float, "risk_pct": float, "max_pos_pct": float,
+          "auto_paper": bool, "active_profile": str}
 
 
 def get() -> dict:
@@ -25,9 +28,10 @@ def get() -> dict:
 
 def put(updates: dict) -> dict:
     s = get()
-    for k in _DEFAULTS:
+    for k, kind in _TYPES.items():
         if k in updates and updates[k] is not None:
-            s[k] = float(updates[k])
+            v = updates[k]
+            s[k] = kind(v) if kind is not str else str(v)
     _FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = _FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(s, indent=2))

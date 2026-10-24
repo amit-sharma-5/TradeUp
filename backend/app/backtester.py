@@ -58,18 +58,18 @@ class Backtester:
 
     def run_async(self, start: str = "2012-01-01", stop_pct: float | None = None,
                   chase_pct: float | None = None, max_pos: int = 8,
-                  grade: str | None = None):
+                  grade: str | None = None, profile: str | None = None):
         with self._lock:
             if self._running:
                 return False
             self._running = True
         threading.Thread(target=self._run_thread, daemon=True,
-                         args=(start, stop_pct, chase_pct, max_pos, grade)).start()
+                         args=(start, stop_pct, chase_pct, max_pos, grade, profile)).start()
         return True
 
     def run(self, start: str = "2012-01-01", stop_pct: float | None = None,
             chase_pct: float | None = None, max_pos: int = 8,
-            grade: str | None = None) -> dict:
+            grade: str | None = None, profile: str | None = None) -> dict:
         """Synchronous run — used by tests and the background thread."""
         root = config.SEPA_ROOT
         if not (root / "sepa" / "backtest.py").exists():
@@ -80,8 +80,11 @@ class Backtester:
         from sepa import backtest, scan, store as sepa_store
         from sepa.params import DEFAULT
 
+        from . import profiles as rule_profiles
         p = DEFAULT
         overrides = {}
+        if profile:                                   # a named rule version first
+            overrides.update(rule_profiles.params_for(profile))
         if stop_pct is not None:
             overrides["stop_pct"] = stop_pct
         if chase_pct is not None:
@@ -103,8 +106,9 @@ class Backtester:
 
         result = {
             "asof": str(max(f.index[-1] for f in feats.values()).date()),
-            "start": start, "params": {"stop_pct": p.stop_pct, "chase_pct": p.chase_pct,
-                                       "max_pos": max_pos, "min_grade": p.min_grade},
+            "start": start, "profile": profile,
+            "params": {"stop_pct": p.stop_pct, "chase_pct": p.chase_pct,
+                       "max_pos": max_pos, "min_grade": p.min_grade},
             "benchmark_source": bench_src,
             "stocks": len(feats), "breakouts": len(ev),
             "summary": [

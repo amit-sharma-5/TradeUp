@@ -94,6 +94,18 @@ export const api = {
   backtestStatus: () => get<BacktestStatus>("/api/backtest"),
   settings: () => get<TraderSettings>("/api/settings"),
   saveSettings: (s: Partial<TraderSettings>) => put<TraderSettings>("/api/settings", s),
+  profiles: () => get<{ profiles: RuleProfile[]; active: string }>("/api/profiles"),
+  saveProfile: (name: string, params: RuleProfileParams) =>
+    post<{ profiles: RuleProfile[]; active: string }>("/api/profiles", { name, params }),
+  deleteProfile: async (name: string) => {
+      const r = await fetch(`/api/profiles/${encodeURIComponent(name)}`, { method: "DELETE" });
+      if (r.status === 401) throw new UnauthorizedError();
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? `HTTP ${r.status}`);
+      return r.json() as Promise<{ profiles: RuleProfile[] }>;
+    },
+  dhanStatus: () => get<DhanStatus>("/api/secrets/dhan"),
+  saveDhan: (client_id: string, access_token: string) =>
+    post<DhanStatus>("/api/secrets/dhan", { client_id, access_token }),
   ticket: (symbol: string, o?: { entry?: number; stop?: number; equity?: number }) => {
     const q = new URLSearchParams();
     if (o?.entry) q.set("entry", String(o.entry));
@@ -133,7 +145,17 @@ export interface StockEdgeStatus {
   latest: { file?: string; rows?: number; symbols?: number | null; se_date?: string | null; error?: string };
 }
 
-export interface TraderSettings { equity: number; risk_pct: number; max_pos_pct: number; }
+export interface TraderSettings {
+  equity: number; risk_pct: number; max_pos_pct: number;
+  auto_paper: boolean; active_profile: string;
+}
+export interface RuleProfile {
+  name: string; stop_pct?: number; chase_pct?: number; min_grade?: string; max_pos?: number;
+}
+export interface RuleProfileParams {
+  stop_pct?: number; chase_pct?: number; min_grade?: string; max_pos?: number;
+}
+export interface DhanStatus { client_id: string; token: string; configured: boolean; }
 export interface TicketPlan {
   pivot: number; entry: number; stop: number; stop_pct: number; qty: number;
   value: number; risk_rs: number; risk_pct_eq: number; pos_pct_eq: number;

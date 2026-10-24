@@ -4,6 +4,8 @@ import {
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import SettingsIcon from "@mui/icons-material/Settings";
+import SettingsDialog from "./SettingsDialog";
 import { api, Signal, Health } from "../api";
 import TradePage from "./TradePage";
 import WatchlistsSection from "./Watchlists";
@@ -22,6 +24,7 @@ export default function CandidatesPage({ tick, onChart }: { tick: number; onChar
   const [tradeSym, setTradeSym] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [seOpen, setSeOpen] = useState(false);
+  const [cfgOpen, setCfgOpen] = useState(false);
 
   useEffect(() => {
     api.candidates().then(setSignals).catch((e) => setErr(String(e)));
@@ -67,6 +70,11 @@ export default function CandidatesPage({ tick, onChart }: { tick: number; onChar
             </IconButton>
           </Tooltip>
         )}
+        <Tooltip title="Settings, rule profiles, Dhan keys">
+          <IconButton size="small" onClick={() => setCfgOpen(true)} aria-label="settings">
+            <SettingsIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         <Tooltip title="Re-run the scan now">
           <IconButton size="small" onClick={refresh} aria-label="refresh signals">
             <RefreshIcon fontSize="small" />
@@ -74,6 +82,7 @@ export default function CandidatesPage({ tick, onChart }: { tick: number; onChar
         </Tooltip>
       </Stack>
       {seOpen && <StockEdgeDialog open={seOpen} close={() => setSeOpen(false)} />}
+      {cfgOpen && <SettingsDialog open={cfgOpen} close={() => { setCfgOpen(false); setReload((r) => r + 1); }} />}
       {health?.signal_source === "sepa" && <WatchlistsSection onChart={onChart} />}
       {GROUPS.map((g) => {
         const rows = signals.filter((s) => s.category === g);

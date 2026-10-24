@@ -28,6 +28,21 @@ class SepaUnavailable(RuntimeError):
     """The SEPA engine/store is missing or failed; the caller falls back to mock."""
 
 
+def _engine_params(params_get):
+    """DEFAULT rules + the active rule profile's overrides (validated upstream)."""
+    from sepa.params import DEFAULT
+    p = DEFAULT
+    if params_get:
+        try:
+            ov = params_get() or {}
+        except Exception:
+            ov = {}
+        if ov:
+            from dataclasses import replace
+            p = replace(p, **ov)
+    return p
+
+
 def row_to_signal(row: dict, category: Category, change_pct: float) -> Signal | None:
     """Map one screener row to a Signal. Returns None when there is no usable pivot."""
     pivot = row.get("buy_pivot")
@@ -54,8 +69,10 @@ class SepaSignalSource(SignalSource):
     runs in a background thread and the API never blocks on it.
     """
 
-    def __init__(self, sepa_root: Path = None):
+    def __init__(self, sepa_root: Path = None, params_get=None):
         self._root = Path(sepa_root) if sepa_root else None
+        self._params_get = params_get        # callable -> engine-param overrides (rule profile)
+        self._on_scan = None                 # callable invoked after each completed scan
         self._signals: list[Signal] = []
         self._asof: str = ""
         self._out: dict | None = None         # the raw screener output (all lists)
@@ -94,6 +111,11 @@ class SepaSignalSource(SignalSource):
         with self._lock:
             self._signals, self._asof, self._out = signals, asof, out
             self._status = f"ok, {len(signals)} candidates as of {asof}"
+        if self._on_scan:
+            try:
+                self._on_scan()               # e.g. auto paper trading; must not break the scan
+            except Exception:
+                traceback.print_exc()
         return signals
 
     # ── internals ──────────────────────────────────────────────────────────
@@ -119,9 +141,10 @@ class SepaSignalSource(SignalSource):
         except ImportError as e:
             raise SepaUnavailable(f"cannot import sepa: {e}") from e
 
-        feats, ev, _ = scan.run_all(DEFAULT)
-        scan.attach_cross(feats, DEFAULT)
-        asof, out = screener.screen(feats, ev, DEFAULT)
+        p = _engine_params(self._params_get)
+        feats, ev, _ = scan.run_all(p)
+        scan.attach_cross(feats, p)
+        asof, out = screener.screen(feats, ev, p)
 
         def chg(sym: str) -> float:
             f = feats.get(sym)
