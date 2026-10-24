@@ -134,7 +134,7 @@ def create_app(start_background: bool = True, journal_dir=None,
         start: str = "2012-01-01"
         stop_pct: float | None = None
         chase_pct: float | None = None
-        max_pos: int = 8
+        max_pos: int | None = None
         grade: str | None = None
         profile: str | None = None
 

@@ -29,7 +29,10 @@ class SepaUnavailable(RuntimeError):
 
 
 def _engine_params(params_get):
-    """DEFAULT rules + the active rule profile's overrides (validated upstream)."""
+    """DEFAULT rules + the active rule profile's overrides, filtered to the
+    fields the engine's P actually has (profile keys like max_pos are
+    portfolio-level and are consumed by the backtester, not the screener)."""
+    from dataclasses import fields, replace
     from sepa.params import DEFAULT
     p = DEFAULT
     if params_get:
@@ -37,8 +40,9 @@ def _engine_params(params_get):
             ov = params_get() or {}
         except Exception:
             ov = {}
+        valid = {f.name for f in fields(p)}
+        ov = {k: v for k, v in ov.items() if k in valid}
         if ov:
-            from dataclasses import replace
             p = replace(p, **ov)
     return p
 

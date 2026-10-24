@@ -1,6 +1,7 @@
 """Rule profiles, auto paper trading (⚡ Buy Now), and Dhan secret storage."""
 import pytest
 
+from app.config import SEPA_ROOT
 from app.domain import Category, Signal, TradeStatus
 from app.jobs.auto_paper import run_after_scan
 from app.signals.mock import MockSignalSource
@@ -92,3 +93,16 @@ def test_mock_source_has_no_auto_scan_hook(client):
     """The mock source (CI) simply has no scan hook — nothing to explode."""
     r = client.get("/api/health")
     assert r.status_code == 200
+
+@pytest.mark.skipif(not (SEPA_ROOT / "sepa" / "params.py").exists(), reason="SEPA absent")
+def test_profile_max_pos_never_reaches_engine_params(tmp_path, monkeypatch):
+    """Regression: a profile's max_pos is portfolio-level and must not be
+    replace()d into the engine's P dataclass (it crashed live scans once)."""
+    from dataclasses import fields
+    from app import profiles
+    from app.signals.adapter import _engine_params
+    monkeypatch.setattr(profiles, "_FILE", tmp_path / "profiles.json")
+    profiles.save("v2-tight", {"stop_pct": 5, "max_pos": 6})
+    p = _engine_params(lambda: profiles.params_for("v2-tight"))
+    assert p.stop_pct == 5.0
+    assert not hasattr(p, "max_pos") or "max_pos" not in {f.name for f in fields(p)}

@@ -57,7 +57,7 @@ class Backtester:
             return self._result
 
     def run_async(self, start: str = "2012-01-01", stop_pct: float | None = None,
-                  chase_pct: float | None = None, max_pos: int = 8,
+                  chase_pct: float | None = None, max_pos: int | None = None,
                   grade: str | None = None, profile: str | None = None):
         with self._lock:
             if self._running:
@@ -68,7 +68,7 @@ class Backtester:
         return True
 
     def run(self, start: str = "2012-01-01", stop_pct: float | None = None,
-            chase_pct: float | None = None, max_pos: int = 8,
+            chase_pct: float | None = None, max_pos: int | None = None,
             grade: str | None = None, profile: str | None = None) -> dict:
         """Synchronous run — used by tests and the background thread."""
         root = config.SEPA_ROOT
@@ -80,11 +80,17 @@ class Backtester:
         from sepa import backtest, scan, store as sepa_store
         from sepa.params import DEFAULT
 
+        from dataclasses import fields
         from . import profiles as rule_profiles
         p = DEFAULT
         overrides = {}
         if profile:                                   # a named rule version first
             overrides.update(rule_profiles.params_for(profile))
+        # max_pos is portfolio-level (how many slots the curve holds), not an
+        # engine field — route it to the portfolio() call instead of P.
+        profile_max_pos = overrides.pop("max_pos", None)
+        valid = {f.name for f in fields(p)}
+        overrides = {k: v for k, v in overrides.items() if k in valid}
         if stop_pct is not None:
             overrides["stop_pct"] = stop_pct
         if chase_pct is not None:
@@ -93,6 +99,8 @@ class Backtester:
             overrides["min_grade"] = grade
         if overrides:
             p = replace(p, **overrides)
+        if max_pos is None:
+            max_pos = profile_max_pos or 8            # profile version, else the default
 
         feats, ev, _src = scan.run_all(p)
         scan.attach_cross(feats, p)
