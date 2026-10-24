@@ -136,7 +136,7 @@ export default function AboutPage() {
       <Card variant="outlined" sx={{ mb: 2 }}>
         <CardContent>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            TradeUp — research & paper-trading terminal
+            TradeUp — your trading system
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.5 }}>
             Other apps tell you what stocks look interesting. This one runs

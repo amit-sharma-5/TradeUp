@@ -1,4 +1,4 @@
-# TradeUp — a personal research & paper-trading terminal for Indian equities
+# TradeUp — your trading system, for Indian equities
 
 Signal → decision → paper order → outcome → review. That's the whole product.
 
