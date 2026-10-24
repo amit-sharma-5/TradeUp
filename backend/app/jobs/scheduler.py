@@ -14,7 +14,9 @@ import traceback
 from ..config import SEPA_ROOT
 
 CHECK_MINUTES = int(os.getenv("TRADEUP_JOB_CHECK_MINUTES", "15"))
-SCAN_TIME = os.getenv("TRADEUP_SCAN_TIME", "17:30")   # after NSE close (15:30 IST) + data settle
+# One or more scan+report times per day, e.g. TRADEUP_SCAN_TIMES="09:15,17:30"
+# (morning + evening Telegram alerts). Default keeps the single evening run.
+SCAN_TIMES = [t.strip() for t in os.getenv("TRADEUP_SCAN_TIMES", os.getenv("TRADEUP_SCAN_TIME", "17:30")).split(",") if t.strip()]
 
 
 def _update_prices(symbols: list[str]):
@@ -71,7 +73,7 @@ def _report_changes(before: dict, after: dict) -> str:
 class Scheduler:
     def __init__(self, adapter):
         self._adapter = adapter
-        self._last_run: str = ""        # date the job last completed
+        self._ran: dict[str, str] = {}  # scan_time -> date last completed
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
 
@@ -84,18 +86,22 @@ class Scheduler:
         self._stop.set()
 
     def status(self) -> dict:
-        return {"last_run": self._last_run, "scan_time": SCAN_TIME,
+        return {"scan_times": SCAN_TIMES, "last_run": max(self._ran.values(), default=""),
                 "running": bool(self._thread and self._thread.is_alive())}
 
     def _loop(self):
         while not self._stop.wait(CHECK_MINUTES * 60):
             try:
+                if not (SEPA_ROOT / "sepa").exists():
+                    continue
                 now = dt.datetime.now()
-                hh, mm = map(int, SCAN_TIME.split(":"))
-                due = now.time() >= dt.time(hh, mm)
-                if due and self._last_run != now.date().isoformat() and (SEPA_ROOT / "sepa").exists():
-                    run_daily_job(self._adapter)
-                    self._last_run = now.date().isoformat()
+                for t in SCAN_TIMES:
+                    if self._ran.get(t) == now.date().isoformat():
+                        continue
+                    hh, mm = map(int, t.split(":"))
+                    if now.time() >= dt.time(hh, mm):
+                        run_daily_job(self._adapter)
+                        self._ran[t] = now.date().isoformat()
             except Exception:
-                traceback.print_exc()   # keep the scheduler alive; tomorrow's run retries
+                traceback.print_exc()   # keep the scheduler alive; the next slot retries
                 time.sleep(60)

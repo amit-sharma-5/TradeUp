@@ -18,8 +18,10 @@ def _ensure_sepa():
         sys.path.insert(0, str(root))
 
 
-def build_chart(symbol: str, days: int = 400) -> dict:
-    """JSON-ready chart payload for one symbol."""
+def build_chart(symbol: str, days: int = 400, tf: str = "daily") -> dict:
+    """JSON-ready chart payload for one symbol. tf: "daily" or "weekly"
+    (weekly = OHLCV resampled to calendar weeks, with 10/30/40-week MAs —
+    the same convention the SEPA terminal's weekly view uses)."""
     _ensure_sepa()
     from sepa import scan, store as sepa_store
     from sepa.params import DEFAULT
@@ -42,23 +44,43 @@ def build_chart(symbol: str, days: int = 400) -> dict:
         stage, tt = int(f.stage), bool(f.tt)
         rs = round(float(f.rs), 1) if f.rs == f.rs else None
 
-    d = df.tail(days)
-    candles = [{"date": str(ix.date()), "open": round(r.open, 2), "high": round(r.high, 2),
-                "low": round(r.low, 2), "close": round(r.close, 2),
-                "volume": int(r.volume)} for ix, r in d.iterrows()]
-    ma = lambda col: ([{"date": str(ix.date()), "value": round(float(v), 2)}
-                       for ix, v in feats[col].tail(days).items() if v == v]
-                      if feats is not None else [])
+    if tf == "weekly":
+        import pandas as pd
+        weeks = max(days // 5, 60)
+        w = df.tail(weeks * 7).resample("W-FRI").agg(
+            {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}).dropna()
+        candles = [{"date": str(ix.date()), "open": round(r.open, 2), "high": round(r.high, 2),
+                    "low": round(r.low, 2), "close": round(r.close, 2),
+                    "volume": int(r.volume)} for ix, r in w.iterrows()]
+        ma = lambda n: [{"date": str(ix.date()), "value": round(float(v), 2)}
+                        for ix, v in w["close"].rolling(n).mean().items() if v == v]
+        mas = {"ma10w": ma(10), "ma30w": ma(30), "ma40w": ma(40)}
+        wk_end = lambda s: pd.Timestamp(s).to_period("W-FRI").end_time.date()
+        breakouts = [{"date": str(wk_end(e.date)), "price": round(float(e.pivot), 2),
+                      "type": str(e.type)}
+                     for e in list(_breakout_rows(symbol, ev))[-weeks:]]
+    else:
+        d = df.tail(days)
+        candles = [{"date": str(ix.date()), "open": round(r.open, 2), "high": round(r.high, 2),
+                    "low": round(r.low, 2), "close": round(r.close, 2),
+                    "volume": int(r.volume)} for ix, r in d.iterrows()]
+        ma = lambda col: ([{"date": str(ix.date()), "value": round(float(v), 2)}
+                           for ix, v in feats[col].tail(days).items() if v == v]
+                          if feats is not None else [])
+        mas = {"ma50": ma("ma50"), "ma200": ma("ma200")}
+        breakouts = [{"date": str(getattr(e, "date").date()), "price": round(float(e.pivot), 2),
+                      "type": str(e.type)}
+                     for e in list(_breakout_rows(symbol, ev))[-days:]]
 
-    # ev is a DataFrame when the stock has breakouts, an empty list otherwise
-    ev_sym = ev[ev.symbol == symbol] if hasattr(ev, "columns") else []
-    breakouts = [{"date": str(getattr(e, "date").date()), "price": round(float(e.pivot), 2),
-                  "type": str(e.type)}
-                 for e in list(ev_sym)[-days:]]
-
-    return {"symbol": symbol, "benchmark_source": bench_src,
-            "candles": candles,
-            "ma50": ma("ma50"), "ma200": ma("ma200"),
+    return {"symbol": symbol, "benchmark_source": bench_src, "tf": tf,
+            "candles": candles, **mas,
             "pivot": pivot, "stop": stop,
             "stage": stage, "rs": rs,
             "tt": tt, "breakouts": breakouts}
+
+
+def _breakout_rows(symbol: str, ev):
+    """Breakout events for one symbol; ev is a DataFrame or an empty list."""
+    if hasattr(ev, "columns"):
+        return ev[ev.symbol == symbol].itertuples() if len(ev) else []
+    return []

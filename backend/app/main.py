@@ -352,12 +352,15 @@ def create_app(start_background: bool = True, journal_dir=None,
                         headers={"Content-Disposition": f"attachment; filename=tradeup_journal_{_today()}.csv"})
 
     @app.get("/api/chart/{symbol}")
-    def chart(symbol: str, days: int = 400):
-        """OHLCV + MAs + pivot/stop + breakout marks for the chart page."""
+    def chart(symbol: str, days: int = 400, tf: str = "daily"):
+        """OHLCV + MAs + pivot/stop + breakout marks for the chart page.
+        tf: daily (default, MA50/200) or weekly (resampled, 10/30/40-week MAs)."""
         if source_name != "sepa":
             raise HTTPException(503, "charts need the SEPA price store (mock source is active)")
+        if tf not in ("daily", "weekly"):
+            raise HTTPException(422, "tf must be daily or weekly")
         try:
-            return build_chart(symbol, days)
+            return build_chart(symbol, days, tf)
         except FileNotFoundError as e:
             raise HTTPException(404, f"no price data for {symbol}")
 

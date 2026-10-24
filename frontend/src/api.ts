@@ -47,7 +47,7 @@ export interface Health {
   store: "csv" | "sqlite";
   trades: number;
   signals: { asof: string; status: string; refreshing: boolean; count: number };
-  scheduler: { last_run: string; scan_time: string; running: boolean };
+  scheduler: { last_run: string; scan_times: string[]; running: boolean };
   quote_poller: { interval_s: number; last_poll: string; last_error: string };
 }
 
@@ -86,7 +86,8 @@ export const api = {
   recordExit: (id: string, price: number, reason: string) =>
     post<{ trade_id: string; exit_price: number }>(`/api/orders/${id}/exit`, { price, reason }),
   setNote: (id: string, note: string) => post<{ trade_id: string; note: string }>(`/api/journal/${id}`, { note }),
-  chart: (symbol: string) => get<ChartData>(`/api/chart/${symbol}`),
+  chart: (symbol: string, tf: "daily" | "weekly" = "daily") =>
+    get<ChartData>(`/api/chart/${symbol}?tf=${tf}`),
   symbols: () => get<StockSymbol[]>("/api/symbols"),
   runBacktest: (p: { start?: string; stop_pct?: number; chase_pct?: number; max_pos?: number; grade?: string }) =>
     post<{ started: boolean; running: boolean; status: string }>("/api/backtest", p),
@@ -170,9 +171,13 @@ export interface LinePoint { date: string; value: number; }
 export interface ChartData {
   symbol: string;
   benchmark_source: string;
+  tf: "daily" | "weekly";
   candles: Candle[];
-  ma50: LinePoint[];
-  ma200: LinePoint[];
+  ma50?: LinePoint[];
+  ma200?: LinePoint[];
+  ma10w?: LinePoint[];
+  ma30w?: LinePoint[];
+  ma40w?: LinePoint[];
   pivot: number | null;
   stop: number | null;
   stage: number;

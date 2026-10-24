@@ -105,7 +105,7 @@ export default function AboutPage() {
                 </Typography>
               )}
               <Typography variant="caption" color="text.secondary">
-                Daily scan at {health.scheduler.scan_time} · quote poll every {health.quote_poller.interval_s}s
+                Daily scan at {health.scheduler.scan_times.join(" + ")} · quote poll every {health.quote_poller.interval_s}s
                 {health.quote_poller.last_poll && <> · last quote poll {health.quote_poller.last_poll}</>}
               </Typography>
             </Stack>

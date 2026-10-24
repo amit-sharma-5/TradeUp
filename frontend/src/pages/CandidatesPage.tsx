@@ -13,6 +13,7 @@ const fmt = (n: number | null | undefined, d = 2) =>
   n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d });
 
 const GROUPS = ["Strong Buy", "Buy", "Watch"];
+const GROUP_LABEL: Record<string, string> = { Watch: "Algo Watch" };  // engine list, named to avoid confusion with My Watch
 
 export default function CandidatesPage({ tick, onChart }: { tick: number; onChart?: (symbol: string) => void }) {
   const [signals, setSignals] = useState<Signal[] | null>(null);
@@ -79,7 +80,7 @@ export default function CandidatesPage({ tick, onChart }: { tick: number; onChar
         if (!rows.length) return null;
         return (
           <Box key={g} sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, ml: 1 }}>{g}</Typography>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, ml: 1 }}>{GROUP_LABEL[g] ?? g}</Typography>
             <Stack spacing={1.5}>
               {rows.map((s) => (
                 <Card key={s.symbol} variant="outlined" onClick={() => setTradeSym(s.symbol)} sx={{ cursor: "pointer" }}>
