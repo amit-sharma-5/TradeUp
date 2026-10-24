@@ -8,11 +8,22 @@ const theme = createTheme({
   palette: {
     mode: "light",
     primary: { main: "#1a7f37" },        // Groww-style green accent
+    secondary: { main: "#f9a825" },      // amber for watch-stage highlights
     error: { main: "#d32f2f" },
-    background: { default: "#fafafa" },
+    success: { main: "#1a7f37" },
+    info: { main: "#1e88e5" },
+    background: { default: "#f6f8f7" },  // slightly green-tinted paper
   },
   shape: { borderRadius: 12 },
-  typography: { fontFamily: "Inter, system-ui, sans-serif" },
+  typography: {
+    fontFamily: "Inter, system-ui, sans-serif",
+    h6: { letterSpacing: "-0.02em" },
+    subtitle1: { letterSpacing: "-0.01em" },
+  },
+  components: {
+    MuiCard: { styleOverrides: { root: { borderRadius: 14 } } },
+    MuiChip: { styleOverrides: { root: { fontWeight: 600 } } },
+  },
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

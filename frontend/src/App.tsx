@@ -62,12 +62,28 @@ export default function App() {
   }
 
   const { page } = view;
+  const goHome = () => setView({ page: "candidates", chartSym: null, tradeSig: null });
   return (
     <Box sx={{ pb: 8 }}>
-      <AppBar position="static" elevation={0} color="transparent" sx={{ bgcolor: "background.paper", borderBottom: 1, borderColor: "divider" }}>
+      <AppBar position="static" elevation={0} color="transparent"
+              sx={{ bgcolor: "background.paper", borderBottom: 1, borderColor: "divider" }}>
         <Toolbar>
-          <TrendingUpIcon color="primary" sx={{ mr: 1 }} />
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700, color: "text.primary" }}>TradeUp</Typography>
+          <Box onClick={goHome} aria-label="TradeUp home"
+               sx={{ display: "flex", alignItems: "center", gap: 1.2, cursor: "pointer", flexGrow: 1 }}>
+            <Box sx={{ width: 34, height: 34, borderRadius: "10px", bgcolor: "primary.main",
+                       display: "flex", alignItems: "center", justifyContent: "center",
+                       boxShadow: "0 2px 6px rgba(26,127,55,.35)" }}>
+              <TrendingUpIcon sx={{ color: "#fff", fontSize: 22 }} />
+            </Box>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: "text.primary", lineHeight: 1.1 }}>
+                TradeUp
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
+                paper-trading terminal
+              </Typography>
+            </Box>
+          </Box>
         </Toolbar>
       </AppBar>
 

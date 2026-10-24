@@ -16,6 +16,9 @@ const fmt = (n: number | null | undefined, d = 2) =>
 
 const GROUPS = ["Strong Buy", "Buy", "Watch"];
 const GROUP_LABEL: Record<string, string> = { Watch: "Algo Watch" };  // engine list, named to avoid confusion with My Watch
+const GROUP_COLOR: Record<string, "success" | "info" | "secondary"> = {
+  "Strong Buy": "success", "Buy": "info", "Watch": "secondary",
+};
 
 export default function CandidatesPage({ tick, onChart }: { tick: number; onChart?: (symbol: string) => void }) {
   const [signals, setSignals] = useState<Signal[] | null>(null);
@@ -89,22 +92,36 @@ export default function CandidatesPage({ tick, onChart }: { tick: number; onChar
         if (!rows.length) return null;
         return (
           <Box key={g} sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, ml: 1 }}>{GROUP_LABEL[g] ?? g}</Typography>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1, ml: 0.5 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: "50%",
+                         bgcolor: g === "Strong Buy" ? "success.main" : g === "Buy" ? "info.main" : "secondary.main" }} />
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.secondary" }}>
+                {GROUP_LABEL[g] ?? g}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">{rows.length}</Typography>
+            </Stack>
             <Stack spacing={1.5}>
               {rows.map((s) => (
-                <Card key={s.symbol} variant="outlined" onClick={() => setTradeSym(s.symbol)} sx={{ cursor: "pointer" }}>
-                  <CardContent>
+                <Card key={s.symbol} variant="outlined" onClick={() => setTradeSym(s.symbol)}
+                      sx={{ cursor: "pointer", position: "relative", overflow: "hidden",
+                            transition: "box-shadow .15s ease, transform .15s ease",
+                            "&:hover": { boxShadow: 4, transform: "translateY(-2px)" },
+                            borderLeft: 4,
+                            borderLeftColor: g === "Strong Buy" ? "success.main" : g === "Buy" ? "info.main" : "secondary.main" }}>
+                  <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
                     <Stack direction="row" alignItems="center" spacing={1}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700, flexGrow: 1 }}>{s.symbol}</Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>₹{fmt(s.ltp)}</Typography>
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>{s.symbol}</Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>{s.name}</Typography>
+                      </Box>
+                      <Typography variant="h6" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>₹{fmt(s.ltp)}</Typography>
                       <Chip size="small" label={`${s.change_pct >= 0 ? "+" : ""}${fmt(s.change_pct)}%`}
-                            color={s.change_pct >= 0 ? "success" : "error"} variant="outlined" />
+                            color={s.change_pct >= 0 ? "success" : "error"} />
                     </Stack>
-                    <Typography variant="caption" color="text.secondary">{s.name}</Typography>
-                    <Typography variant="body2" sx={{ mt: 1 }}>{s.why}</Typography>
-                    <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} alignItems="center">
-                      <Chip size="small" label={`Buy point ₹${fmt(s.pivot)}`} />
-                      <Chip size="small" label={`Stop ₹${fmt(s.stop)}`} />
+                    <Typography variant="body2" sx={{ mt: 1 }} color="text.primary">{s.why}</Typography>
+                    <Stack direction="row" spacing={1} sx={{ mt: 1.25 }} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Chip size="small" color={GROUP_COLOR[g]} label={`Buy point ₹${fmt(s.pivot)}`} />
+                      <Chip size="small" variant="outlined" color="error" label={`Stop ₹${fmt(s.stop)}`} />
                       <Box flexGrow={1} />
                       {onChart && (
                         <Button size="small" onClick={(e) => { e.stopPropagation(); onChart(s.symbol); }}>
