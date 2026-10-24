@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import {
-  Box, Card, CardContent, Chip, Container, Divider, Stack, Step, StepLabel,
-  Stepper, Typography,
+  Box, Card, CardContent, Chip, Container, Divider, Accordion, AccordionDetails,
+  AccordionSummary, Stack, Step, StepLabel, Stepper, Typography,
 } from "@mui/material";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import ReplayIcon from "@mui/icons-material/Replay";
 import LockIcon from "@mui/icons-material/Lock";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { api, Health } from "../api";
 
 const fmt = (n: number | null | undefined, d = 2) =>
@@ -34,6 +35,94 @@ const UNIQUE = [
     icon: <LockIcon color="primary" />,
     title: "Private and yours",
     body: "Runs on your machine, your data in plain CSV files, no cloud, no subscription. Paper only in this phase — real orders are deliberately out of reach.",
+  },
+];
+
+const FEATURES: { title: string; body: string }[] = [
+  { title: "Candidates", body: "Strong Buy · Buy · Algo Watch lists from the engine, each with a plain-English 'why' — plus Uptrend, Leaders, Sell/Avoid, Earnings × Tech and market context tabs." },
+  { title: "Stock search", body: "Chart tab → search any of the ~500 NIFTY members by symbol or company name." },
+  { title: "Charts", body: "Daily / Weekly / D+W candlesticks with volume, MA50/200 (10/30/40-week on weekly), buy point and stop lines, breakout arrows, full-screen mode and news naming the company." },
+  { title: "Paper trading", body: "Trade ticket with suggested quantity from your equity and risk; buy-stop or limit entries; orders fill, chase-cancel and stop out automatically from live prices." },
+  { title: "⚡ Auto paper trading", body: "Optional: new Strong Buy / Buy candidates are paper-traded automatically using the engine's plan. Turn it on in Settings." },
+  { title: "Journal", body: "Live P&L on open trades, realized P&L and a summary on closed ones, full event timeline, move stop / record exit / cancel, and notes & lessons on every trade. Export as CSV." },
+  { title: "Backtest", body: "Replays the rules over years of history: win rate, expectancy, drawdown, equity curve and per-grade breakdowns — SEPA-filtered vs all-breakouts baseline." },
+  { title: "Rule profiles", body: "Create named versions of the rule parameters (stop %, chase %, grade filter…) in Settings; the active profile drives the screener and any profile can be backtested." },
+  { title: "My Watch", body: "Your personal list of stocks being studied, with live prices — separate from the engine's lists." },
+  { title: "Alerts & data", body: "Optional Telegram alerts on fills and daily scan changes (morning/evening schedule); StockEdge fundamentals import; everything stays on your machine." },
+];
+
+const GUIDE: { q: string; a: React.ReactNode }[] = [
+  {
+    q: "Daily routine — how do I use this app?",
+    a: (<>
+      1. <b>Morning:</b> if Telegram is configured, the scan report tells you what changed overnight.
+      2. <b>Review Candidates:</b> start with Strong Buy, then Buy; each card says <i>why</i> the stock is listed.
+      3. <b>Check the chart</b> before anything: is price near the buy point? is the market context healthy (Signals tab)?
+      4. <b>Place a paper order</b> if the setup convinces you — the ticket suggests the quantity and shows your risk.
+      5. <b>Let it run:</b> fills and stop-outs happen automatically; the Journal tells the story.
+      6. <b>Review:</b> closed trades → add a note or lesson. That habit is the product.
+    </>),
+  },
+  {
+    q: "What do the lists mean?",
+    a: (<>
+      <b>Strong Buy</b> — high-quality breakouts (early base, RS ≥ 90, high volume, strong earnings) or their pullback re-entries.
+      <b>Buy</b> — other volume breakouts inside the buy zone.
+      <b>Algo Watch</b> — Stage-2 uptrends near a decision point: buy-ready bases, extended breakouts, or retests.
+      <b>My Watch</b> — your personal list, untouched by the rules.
+      Only current NIFTY 500 members are ever listed.
+    </>),
+  },
+  {
+    q: "How do paper fills work?",
+    a: (<>
+      A <b>Buy-stop</b> fills when the live price reaches your trigger; if the first qualifying
+      price is already more than the chase limit (default +2%) above the pivot, the order is
+      cancelled instead of chasing. A <b>Limit</b> fills when price is at or below your limit.
+      An open trade closes automatically when price touches your <b>stop</b>. Quotes refresh
+      every ~15 seconds; prices are last-traded (Yahoo), not live ticks.
+    </>),
+  },
+  {
+    q: "What is position sizing and where do I set it?",
+    a: (<>
+      Settings (gear icon) → Equity, Risk % and Max position %. The ticket then suggests
+      <i> quantity = equity × risk% ÷ (entry − stop)</i>, capped by the max-position rule,
+      and shows +2R/+3R targets. The same math the backtest used.
+    </>),
+  },
+  {
+    q: "What are rule profiles?",
+    a: (<>
+      Settings → Rule profiles. A profile is a named set of rule parameters (stop %, chase %,
+      minimum grade, max positions). The <b>active profile</b> changes what the screener shows;
+      the Backtest tab can run any profile so you can compare v1 vs v2 on real history before
+      trusting either. The trading logic itself is never rewritten.
+    </>),
+  },
+  {
+    q: "What about fundamentals and news?",
+    a: (<>
+      StockEdge scan exports (quarterly) feed the earnings flags — cloud-upload icon on the
+      Candidates page; the 'why' lines mention EPS and quality flags once data is on file.
+      News under the chart comes from reputable business newsrooms only.
+    </>),
+  },
+  {
+    q: "Where is my data? Can I lose it?",
+    a: (<>
+      Everything lives in the app's data folder: journal (trades + events), settings,
+      watchlist, profiles. Back it up by copying that folder. Closing or restarting the app
+      never loses a trade; deleting the folder does.
+    </>),
+  },
+  {
+    q: "Is this real trading?",
+    a: (<>
+      No — deliberately. Every order is paper. Nothing here can place a real order, and
+      that stays until it is explicitly, consciously switched on much later. This is a
+      practice-and-research tool, not investment advice.
+    </>),
   },
 ];
 
@@ -81,6 +170,41 @@ export default function AboutPage() {
               </Stack>
             </CardContent>
           </Card>
+        ))}
+      </Stack>
+
+      {/* features */}
+      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, ml: 1 }}>
+        Features
+      </Typography>
+      <Stack spacing={1} sx={{ mb: 3 }}>
+        {FEATURES.map((f) => (
+          <Stack key={f.title} direction="row" spacing={1.5} alignItems="flex-start"
+                 sx={{ border: 1, borderColor: "divider", borderRadius: 2, px: 1.5, py: 1.2, bgcolor: "background.paper" }}>
+            <Chip size="small" label={f.title.split(" ")[0].slice(0, 12)} variant="outlined" sx={{ mt: 0.2 }} />
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{f.title}</Typography>
+              <Typography variant="body2" color="text.secondary">{f.body}</Typography>
+            </Box>
+          </Stack>
+        ))}
+      </Stack>
+
+      {/* how to use */}
+      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, ml: 1 }}>
+        How to use it
+      </Typography>
+      <Stack spacing={1} sx={{ mb: 3 }}>
+        {GUIDE.map((g, i) => (
+          <Accordion key={i} defaultExpanded={i === 0} disableGutters
+                     sx={{ border: 1, borderColor: "divider", borderRadius: "12px !important", bgcolor: "background.paper" }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{g.q}</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography variant="body2" color="text.secondary" component="div">{g.a}</Typography>
+            </AccordionDetails>
+          </Accordion>
         ))}
       </Stack>
 
