@@ -80,7 +80,7 @@ export default function App() {
                 TradeUp
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
-                paper-trading terminal
+                research & paper-trading terminal
               </Typography>
             </Box>
           </Box>
