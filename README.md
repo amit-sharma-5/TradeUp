@@ -94,7 +94,7 @@ to 3 mock signals.
 ## Tests
 
 ```bash
-.venv/bin/pytest backend -q        # 125 tests: fills, FSM, stores, auth, concurrency, API, engine endpoints
+cd backend && ../.venv/bin/pytest -q   # 125 tests: fills, FSM, stores, auth, concurrency, API, engine endpoints
 (cd frontend && npm run build)     # strict TS (no unused code) + bundle; both run in CI
 ```
 Engine-dependent tests skip automatically when `../SEPA-terminal` is absent (CI).
