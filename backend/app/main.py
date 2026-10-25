@@ -8,9 +8,9 @@ repo is present (SEPA_ROOT), otherwise the mock source keeps the app usable.
 """
 import sys
 
-from fastapi import FastAPI, HTTPException, Response, UploadFile
+from fastapi import FastAPI, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from . import config
@@ -24,8 +24,8 @@ from .symbols import get_symbols
 from .ticket import plan_for
 from .watchlists import from_screen as watchlists_from_screen
 from . import watchlist
+from . import insights
 from .sectors import from_feats as sectors_from_feats
-from .symbols import get_symbols
 from .domain import Category, Signal, TradeStatus
 from .jobs.notify import send as notify_send
 from .jobs.quote_poller import PriceCache, QuotePoller
@@ -64,9 +64,12 @@ def create_app(start_background: bool = True, journal_dir=None,
         signals = MockSignalSource()
         source_name = "mock"
 
-    app = FastAPI(title="TradeUp", version="0.3.0")
-    app.add_middleware(CORSMiddleware, allow_origins=["*"],
-                       allow_methods=["*"], allow_headers=["*"])
+    app = FastAPI(title="TradeUp", version="1.0.0")
+    # The app is served same-origin by this process; CORS only matters for the
+    # Vite dev server. Never "*" — that would let any site read the API.
+    app.add_middleware(CORSMiddleware,
+                       allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+                       allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
     scheduler = Scheduler(signals) if source_name == "sepa" else None
     prices = PriceCache()
     poller = (QuotePoller(broker, store, price_cache=prices, notify=notify_send,
@@ -76,9 +79,17 @@ def create_app(start_background: bool = True, journal_dir=None,
     # ⚡ Buy Now: after every completed scan, auto-place paper orders for new
     # Strong Buy / Buy candidates when the trader enabled it in settings.
     if source_name == "sepa":
+        last_auto = {"asof": None}
+
         def _after_scan():
-            auto_paper.run_after_scan(
+            asof = signals.status.get("asof")
+            if asof and asof == last_auto["asof"]:
+                return                          # already evaluated this scan date
+            last_auto["asof"] = asof
+            placed = auto_paper.run_after_scan(
                 signals.get_candidates(), broker, app_settings.get, _plan_fn)
+            if placed:
+                notify_send("⚡ TradeUp auto paper orders: " + ", ".join(placed))
         signals.on_scan = _after_scan
 
     def _plan_fn(pivot: float, entry: float, stop: float) -> dict:
@@ -87,7 +98,9 @@ def create_app(start_background: bool = True, journal_dir=None,
         if str(config.SEPA_ROOT) not in _sys.path:
             _sys.path.insert(0, str(config.SEPA_ROOT))
         from sepa import trading
-        s = {**trading.DEFAULTS, "equity": app_settings.get()["equity"]}
+        st = app_settings.get()
+        s = {**trading.DEFAULTS, "equity": st["equity"], "risk_pct": st["risk_pct"],
+             "max_pos_pct": st["max_pos_pct"]}
         return trading.plan(pivot, entry=entry, stop=stop, s=s)
     backtester = Backtester()
     app.state.store, app.state.broker, app.state.prices = store, broker, prices
@@ -140,16 +153,27 @@ def create_app(start_background: bool = True, journal_dir=None,
         profile: str | None = None
 
     @app.post("/api/login")
-    def login(body: LoginIn, response: Response):
-        auth.issue_cookie(response, body.passphrase)
+    def login(body: LoginIn, request: Request, response: Response):
+        auth.issue_cookie(request, response, body.passphrase)
         return {"ok": True}
+
+    @app.post("/api/logout")
+    def logout(response: Response):
+        auth.clear_cookie(response)
+        return {"ok": True}
+
+    @app.get("/api/session")
+    def session(request: Request):
+        """Lets the UI ask 'do I need to log in?' without probing data routes."""
+        return {"auth_enabled": auth.enabled, "authenticated": auth.is_authenticated(request)}
 
     @app.middleware("http")
     async def _auth_guard(request, call_next):
-        """Phase 2 auth: active only when TRADEUP_PASSPHRASE is set. /api/login and
-        /api/health stay open so the UI can tell the user what to do."""
+        """Active only when TRADEUP_PASSPHRASE is set. login/logout/session/health
+        stay open so the UI can tell the user what to do."""
         path = request.url.path
-        if auth.enabled and path.startswith("/api") and path not in ("/api/login", "/api/health"):
+        open_paths = ("/api/login", "/api/logout", "/api/session", "/api/health")
+        if auth.enabled and path.startswith("/api") and path not in open_paths:
             try:
                 auth.verify(request)
             except HTTPException as e:
@@ -157,7 +181,9 @@ def create_app(start_background: bool = True, journal_dir=None,
         return await call_next(request)
 
     @app.get("/api/health")
-    def health():
+    def health(request: Request):
+        if auth.enabled and not auth.is_authenticated(request):
+            return {"ok": True, "auth_required": True}
         return {"ok": True, "signal_source": source_name, "store": config.STORE_KIND,
                 "trades": len(store.list_trades()),
                 "signals": signals.status if source_name == "sepa" else {"status": "mock, 3 candidates"},
@@ -412,7 +438,7 @@ def create_app(start_background: bool = True, journal_dir=None,
         if source_name != "sepa":
             raise HTTPException(503, "StockEdge needs the SEPA engine")
         try:
-            content = file.file.read()
+            content = file.file.read(25 * 1024 * 1024 + 1)   # cap: 25 MB (+1 to detect overflow)
             name = save_upload(file.filename or "", content)
         except ValueError as e:
             raise HTTPException(422, str(e))
@@ -484,6 +510,89 @@ def create_app(start_background: bool = True, journal_dir=None,
     def backtest_result():
         return {**backtester.status, "result": backtester.result()}
 
+    @app.get("/api/stock/{symbol}")
+    def stock(symbol: str):
+        """Everything about one stock: SEPA status, Trend Template checklist,
+        trade plan (your sizing), breakouts & violations, fundamentals, your trades."""
+        if source_name != "sepa":
+            raise HTTPException(503, "stock detail needs the SEPA engine")
+        try:
+            return insights.stock_detail(symbol, store, app_settings.get(), signals.last_screen())
+        except FileNotFoundError:
+            raise HTTPException(404, f"no price data for {symbol}")
+
+    @app.get("/api/holdings")
+    def holdings():
+        """The engine's verdict on every open paper trade: Sell / Add more /
+        Partial booking / Hold, with the reason."""
+        if source_name != "sepa":
+            return {"holdings": []}
+        if signals.last_feats() is None:
+            signals.refresh_async()
+            return {"holdings": [], "stale": True}
+        return {"holdings": insights.holdings_review(
+            store, signals.last_screen(), signals.last_feats(), prices.get)}
+
+    @app.get("/api/journal/stats")
+    def journal_stats():
+        """TTLC statistics on closed trades (batting average, gain/loss, expectancy, R)."""
+        return insights.journal_stats(store.list_trades())
+
+    @app.get("/api/backtest/runs")
+    def backtest_runs():
+        return {"runs": backtester.runs()}
+
+    @app.post("/api/backtest/runs/{run_id}/load")
+    def backtest_load(run_id: str):
+        r = backtester.load(run_id)
+        if r is None:
+            raise HTTPException(404, f"no saved run {run_id}")
+        return {**backtester.status, "result": r}
+
+    @app.delete("/api/backtest/runs/{run_id}")
+    def backtest_delete(run_id: str):
+        if not backtester.delete(run_id):
+            raise HTTPException(404, f"no saved run {run_id}")
+        return {"runs": backtester.runs()}
+
+    @app.get("/api/backtest/trades.csv")
+    def backtest_trades_csv():
+        r = backtester.result()
+        if not r or not r.get("trades"):
+            raise HTTPException(404, "run a backtest first")
+        import csv as _csv
+        import io
+        buf = io.StringIO()
+        cols = list(r["trades"][0].keys())
+        w = _csv.DictWriter(buf, fieldnames=cols)
+        w.writeheader()
+        w.writerows(r["trades"])
+        return Response(buf.getvalue(), media_type="text/csv",
+                        headers={"Content-Disposition": f"attachment; filename=tradeup_backtest_{r.get('id', 'run')}.csv"})
+
+    @app.get("/api/data")
+    def data_status():
+        """Data page: price store, benchmark, universe, StockEdge, last jobs."""
+        if source_name != "sepa":
+            return {"source": "mock"}
+        import datetime as _dt
+        prices_dir = config.SEPA_ROOT / "data" / "prices"
+        files = list(prices_dir.glob("*.csv")) if prices_dir.exists() else []
+        newest = max((f.stat().st_mtime for f in files), default=0)
+        try:
+            n500 = len(get_symbols())
+        except Exception:
+            n500 = None
+        return {
+            "source": "sepa", "sepa_root": str(config.SEPA_ROOT),
+            "price_files": len(files),
+            "prices_updated": _dt.datetime.fromtimestamp(newest).strftime("%Y-%m-%d %H:%M") if newest else None,
+            "scan": signals.status, "universe_size": n500,
+            "scheduler": scheduler.status() if scheduler else None,
+            "quote_poller": poller.status() if poller else None,
+            "store": config.STORE_KIND, "journal_trades": len(store.list_trades()),
+        }
+
     @app.get("/api/journal")
     def journal():
         """The story of every trade, plus derived P&L where it is knowable:
@@ -503,6 +612,13 @@ def create_app(start_background: bool = True, journal_dir=None,
                 d["pnl_pct"] = round((t.exit_price / t.entry_price - 1) * 100, 2)
             out.append(d)
         return {"trades": out}
+
+    @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+                   include_in_schema=False)
+    def api_not_found(rest: str):
+        """Unknown /api paths answer a clear JSON 404 instead of falling through
+        to the frontend mount."""
+        raise HTTPException(404, f"no such endpoint: /api/{rest}")
 
     if start_background and scheduler:
         scheduler.start()

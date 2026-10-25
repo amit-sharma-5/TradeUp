@@ -20,7 +20,7 @@ def run_after_scan(candidates: list[Signal], broker, settings_get, plan_fn) -> l
     s = settings_get()
     if not s.get("auto_paper"):
         return []
-    active = {t.symbol for t in broker._store.active_trades()}
+    active = broker.active_symbols()
     placed = []
     for sig in candidates:
         if sig.category.value not in ("Strong Buy", "Buy"):

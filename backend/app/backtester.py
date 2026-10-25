@@ -15,8 +15,9 @@ import traceback
 
 from . import config
 
-# breakdown tables we expose (SEPA computes more: period, rs bucket, volume…)
-_BREAKDOWNS = ("grade", "type", "base", "reason")
+# breakdown tables we expose (SEPA computes more: rs bucket, volume…)
+_BREAKDOWNS = ("grade", "type", "base", "period", "reason")
+_RUNS_DIR = config.DATA_DIR / "backtests"
 
 
 def _j(v):
@@ -36,7 +37,11 @@ def _j(v):
 
 
 def _df_records(df):
-    return [{k: _j(v) for k, v in row.items()} for row in df.to_dict("records")]
+    """Rows with the group label kept (breakdown frames are indexed by it)."""
+    out = []
+    for idx, row in zip(df.index, df.to_dict("records")):
+        out.append({"group": str(idx), **{k: _j(v) for k, v in row.items()}})
+    return out
 
 
 class Backtester:
@@ -129,10 +134,66 @@ class Backtester:
                                      "invested": _j(r.invested)}
                                     for ix, r in curve.iterrows()]},
         }
+        trades_cols = ["symbol", "date", "type", "grade", "base_no", "entry", "exit_date",
+                       "exit", "ret", "r", "bars", "reason"]
+        result["trades"] = [{k: _j(v) for k, v in row.items()}
+                            for row in sepa[[c for c in trades_cols if c in sepa]].to_dict("records")]
+        result["id"] = time.strftime("%Y%m%d-%H%M%S")
+        result["label"] = f"{profile or 'default'} · from {start}"
+        self._save(result)
         with self._lock:
             self._result = result
             self._status = f"ok: {result['summary'][0].get('trades', '?')} SEPA trades since {start}"
         return result
+
+    # ── saved runs (compare versions) ──────────────────────────────────────
+    def _save(self, result: dict):
+        import json
+        _RUNS_DIR.mkdir(parents=True, exist_ok=True)
+        f = _RUNS_DIR / f"{result['id']}.json"
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(json.dumps(result, default=str))
+        tmp.replace(f)
+
+    def runs(self) -> list[dict]:
+        """Summary of every saved run, newest first."""
+        import json
+        out = []
+        for f in sorted(_RUNS_DIR.glob("*.json"), reverse=True) if _RUNS_DIR.exists() else []:
+            try:
+                r = json.loads(f.read_text())
+            except Exception:
+                continue
+            s0 = (r.get("summary") or [{}])[0]
+            pf = r.get("portfolio") or {}
+            out.append({"id": r.get("id", f.stem), "label": r.get("label", f.stem),
+                        "profile": r.get("profile"), "start": r.get("start"),
+                        "params": r.get("params"), "asof": r.get("asof"),
+                        "trades": s0.get("trades"), "win%": s0.get("win%"),
+                        "expectancy%": s0.get("expectancy%"),
+                        "CAGR%": pf.get("CAGR%"), "max DD%": pf.get("max DD%")})
+        return out
+
+    def load(self, run_id: str) -> dict | None:
+        import json
+        if not run_id.replace("-", "").isdigit():
+            return None
+        f = _RUNS_DIR / f"{run_id}.json"
+        if not f.exists():
+            return None
+        r = json.loads(f.read_text())
+        with self._lock:
+            self._result = r
+        return r
+
+    def delete(self, run_id: str) -> bool:
+        if not run_id.replace("-", "").isdigit():
+            return False
+        f = _RUNS_DIR / f"{run_id}.json"
+        if f.exists():
+            f.unlink()
+            return True
+        return False
 
     def _run_thread(self, *args):
         try:

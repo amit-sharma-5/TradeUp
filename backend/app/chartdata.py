@@ -80,7 +80,14 @@ def build_chart(symbol: str, days: int = 400, tf: str = "daily") -> dict:
 
 
 def _breakout_rows(symbol: str, ev):
-    """Breakout events for one symbol; ev is a DataFrame or an empty list."""
+    """Breakout events for one symbol as attribute objects.
+
+    scan.analyze_symbol returns a LIST OF DICTS for a single stock (run_all
+    builds the DataFrame); both shapes are accepted.
+    """
+    from types import SimpleNamespace
     if hasattr(ev, "columns"):
-        return ev[ev.symbol == symbol].itertuples() if len(ev) else []
-    return []
+        rows = ev[ev.symbol == symbol].to_dict("records") if len(ev) else []
+    else:
+        rows = list(ev or [])
+    return [SimpleNamespace(**r) for r in rows if r.get("pivot") == r.get("pivot")]

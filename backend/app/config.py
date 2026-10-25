@@ -10,6 +10,23 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+
+def _load_dotenv(path: Path):
+    """Load KEY=VALUE lines from backend/.env into the environment once, without
+    overriding real environment variables. Everything else (auth, Telegram,
+    scan times) reads os.environ, so this must run before those modules import."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_dotenv(Path(os.getenv("TRADEUP_ENV_FILE", REPO_ROOT / "backend" / ".env")))
+
 DATA_DIR = Path(os.getenv("TRADEUP_DATA_DIR", REPO_ROOT / "data"))
 JOURNAL_DIR = DATA_DIR / "journal"
 

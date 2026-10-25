@@ -10,10 +10,22 @@ PaperBroker.on_quotes):
 
 Every action appends exactly one TradeEvent via the domain state machine.
 """
+import threading
+
 from ..domain import Trade, TradeEvent, TradeStatus, log_event, transition
 from .base import Broker
 
-CHASE_PCT = 2.0  # same default as sepa/params.py (F2F 2022: buy within 1-2% of pivot)
+CHASE_PCT = 2.0
+
+
+def _locked(fn):
+    """Run a broker mutation under the instance lock (API, poller and the
+    auto-paper hook run on different threads)."""
+    def wrapper(self, *a, **kw):
+        with self._lock:
+            return fn(self, *a, **kw)
+    wrapper.__name__, wrapper.__doc__ = fn.__name__, fn.__doc__
+    return wrapper  # same default as sepa/params.py (F2F 2022: buy within 1-2% of pivot)
 
 
 def _now() -> str:
@@ -25,10 +37,20 @@ class PaperBroker(Broker):
     name, live = "paper", False
 
     def __init__(self, store):
-        # The broker owns the trade lifecycle; the store persists it.
+        # The broker owns the trade lifecycle; the store persists it. One lock
+        # serializes mutations from the API, the quote poller and auto-paper.
         self._store = store
+        self._lock = threading.RLock()
+
+    @property
+    def store(self):
+        return self._store
+
+    def active_symbols(self) -> set[str]:
+        return {t.symbol for t in self._store.active_trades()}
 
     # ── order entry ────────────────────────────────────────────────────────
+    @_locked
     def place(self, symbol: str, kind: str, qty: int, limit_price: float,
               stop: float, pivot: float | None = None) -> Trade:
         if kind not in ("BUY_STOP", "LIMIT"):
@@ -44,6 +66,7 @@ class PaperBroker(Broker):
         self._store.save_trade(trade)
         return trade
 
+    @_locked
     def cancel(self, trade_id: str, reason: str = "cancelled by you") -> Trade:
         trade = self._need(trade_id, TradeStatus.PLANNED)
         transition(trade, TradeStatus.CANCELLED, "cancelled",
@@ -51,6 +74,7 @@ class PaperBroker(Broker):
         self._store.save_trade(trade)
         return trade
 
+    @_locked
     def modify_stop(self, trade_id: str, stop: float) -> Trade:
         """Same rule as the proven engine (sepa/broker.py PaperBroker.modify_stop):
         stop must be > 0 and, while planned, below the trigger. While open, below
@@ -66,6 +90,7 @@ class PaperBroker(Broker):
         self._store.save_trade(trade)
         return trade
 
+    @_locked
     def exit(self, trade_id: str, price: float, reason: str = "sold (paper)") -> Trade:
         """Manual exit: the trader books the price they would have sold at."""
         trade = self._need(trade_id, TradeStatus.OPEN)
@@ -78,6 +103,7 @@ class PaperBroker(Broker):
         self._store.save_trade(trade)
         return trade
 
+    @_locked
     def set_note(self, trade_id: str, note: str) -> Trade:
         """Notes & lessons — part of the review loop, no status change."""
         trade = self._store.get_trade(trade_id)
@@ -88,6 +114,7 @@ class PaperBroker(Broker):
         return trade
 
     # ── fill rules (verbatim port of sepa PaperBroker.on_quotes) ───────────
+    @_locked
     def on_quotes(self, ltp: dict[str, float]) -> list[dict]:
         events = []
         for trade in self._store.active_trades():

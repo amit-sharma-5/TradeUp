@@ -11,6 +11,7 @@ never an event.
 """
 import csv
 import os
+import threading
 from pathlib import Path
 
 from ..domain import Trade, TradeEvent, TradeStatus
@@ -35,6 +36,9 @@ class CsvStore(Store):
         self._dir.mkdir(parents=True, exist_ok=True)
         self._trades: dict[str, Trade] = {}
         self._events_on_disk: dict[str, int] = {}   # trade_id -> events already persisted
+        # API thread, quote poller and the post-scan auto-paper hook all write:
+        # one re-entrant lock keeps appends + snapshot rewrites consistent.
+        self._lock = threading.RLock()
         self._load()
 
     # ── loading: replay what is on disk ────────────────────────────────────
@@ -66,19 +70,23 @@ class CsvStore(Store):
 
     # ── Store interface ────────────────────────────────────────────────────
     def next_trade_id(self) -> str:
-        n = max((int(t.id[1:]) for t in self._trades.values() if t.id.startswith("T")), default=0)
-        return f"T{n + 1:04d}"
+        with self._lock:
+            n = max((int(t.id[1:]) for t in self._trades.values() if t.id.startswith("T")), default=0)
+            return f"T{n + 1:04d}"
 
     def get_trade(self, trade_id: str) -> Trade | None:
-        return self._trades.get(trade_id)
+        with self._lock:
+            return self._trades.get(trade_id)
 
     def save_trade(self, trade: Trade) -> None:
-        self._trades[trade.id] = trade
-        self._append_new_events(trade)
-        self._write_snapshot()
+        with self._lock:
+            self._trades[trade.id] = trade
+            self._append_new_events(trade)
+            self._write_snapshot()
 
     def list_trades(self) -> list[Trade]:
-        return list(self._trades.values())
+        with self._lock:
+            return list(self._trades.values())
 
     # ── writers ────────────────────────────────────────────────────────────
     def _append_new_events(self, trade: Trade):
