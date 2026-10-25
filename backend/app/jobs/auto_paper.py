@@ -12,6 +12,7 @@ Safety rails:
 - every auto order is journaled with note "auto (⚡ Buy Now)" so review can
   separate machine trades from manual ones.
 """
+from ..broker.paper import AUTO_MARKER
 from ..domain import Signal
 
 
@@ -38,6 +39,6 @@ def run_after_scan(candidates: list[Signal], broker, settings_get, plan_fn) -> l
                              sig.stop, pivot=sig.pivot)
         except ValueError:
             continue
-        broker.set_note(t.id, "auto (⚡ Buy Now) — placed by the screener")
+        broker.set_note(t.id, f"{AUTO_MARKER} — placed by the screener")
         placed.append(f"{sig.symbol} ×{plan['qty']}")
     return placed

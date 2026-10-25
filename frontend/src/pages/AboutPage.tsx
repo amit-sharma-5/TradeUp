@@ -8,10 +8,9 @@ import MenuBookIcon from "@mui/icons-material/MenuBook";
 import ReplayIcon from "@mui/icons-material/Replay";
 import LockIcon from "@mui/icons-material/Lock";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import IconButton from "@mui/material/IconButton";
 import { api, Health } from "../api";
-
-const fmt = (n: number | null | undefined, d = 2) =>
-  n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d });
 
 const LOOP = ["Signal", "Decision", "Paper order", "Outcome", "Review"];
 
@@ -39,16 +38,13 @@ const UNIQUE = [
 ];
 
 const FEATURES: { title: string; body: string }[] = [
-  { title: "Candidates", body: "Strong Buy · Buy · Algo Watch lists from the engine, each with a plain-English 'why' — plus Uptrend, Leaders, Sell/Avoid, Earnings × Tech and market context tabs." },
-  { title: "Stock search", body: "Chart tab → search any of the ~500 NIFTY members by symbol or company name." },
-  { title: "Charts", body: "Daily / Weekly / D+W candlesticks with volume, MA50/200 (10/30/40-week on weekly), buy point and stop lines, breakout arrows, full-screen mode and news naming the company." },
-  { title: "Paper trading", body: "Trade ticket with suggested quantity from your equity and risk; buy-stop or limit entries; orders fill, chase-cancel and stop out automatically from live prices." },
-  { title: "⚡ Auto paper trading", body: "Optional: new Strong Buy / Buy candidates are paper-traded automatically using the engine's plan. Turn it on in Settings." },
-  { title: "Journal", body: "Live P&L on open trades, realized P&L and a summary on closed ones, full event timeline, move stop / record exit / cancel, and notes & lessons on every trade. Export as CSV." },
-  { title: "Backtest", body: "Replays the rules over years of history: win rate, expectancy, drawdown, equity curve and per-grade breakdowns — SEPA-filtered vs all-breakouts baseline." },
-  { title: "Rule profiles", body: "Create named versions of the rule parameters (stop %, chase %, grade filter…) in Settings; the active profile drives the screener and any profile can be backtested." },
-  { title: "My Watch", body: "Your personal list of stocks being studied, with live prices — separate from the engine's lists." },
-  { title: "Alerts & data", body: "Optional Telegram alerts on fills and daily scan changes (morning/evening schedule); StockEdge fundamentals import; everything stays on your machine." },
+  { title: "Today", body: "Market pulse (Nifty 500 vs its averages, breadth), positions that need action, and the engine's Strong Buy · Buy · Algo Watch lists — each with RS, grade, distance to pivot, volume and a plain-English why." },
+  { title: "Markets", body: "Sectors (industry returns 1D–5Y, Stage-2 / Trend-Template share, tap for members), Leaders, Uptrend, Sell/Avoid, Earnings × Tech and your own My Watch list." },
+  { title: "Stock page", body: "Tap any stock anywhere: Daily / Weekly / D+W chart (full screen), the Trend Template checklist rule by rule, your sized trade plan, breakouts & violations, fundamentals, news and your trades in it." },
+  { title: "Paper trading", body: "Buy-stop or limit tickets with the engine's suggested quantity; fills, chase-cancels and stop-outs happen automatically from live prices. Optional ⚡ auto paper trading." },
+  { title: "Portfolio", body: "Positions with the engine's verdict (Sell / Add more / Partial / Hold and why), pending orders, closed trades with their full story, notes & lessons, TTLC statistics and CSV export." },
+  { title: "Research", body: "Backtest any rule profile over years of history, compare saved runs side by side, create and activate rule profiles, export trade lists." },
+  { title: "Data & alerts", body: "Data & jobs page with a manual price update, StockEdge import, Telegram alerts for fills and daily scan changes. Everything stays on your machine." },
 ];
 
 const GUIDE: { q: string; a: React.ReactNode }[] = [
@@ -56,8 +52,8 @@ const GUIDE: { q: string; a: React.ReactNode }[] = [
     q: "Daily routine — how do I use this app?",
     a: (<>
       1. <b>Morning:</b> if Telegram is configured, the scan report tells you what changed overnight.
-      2. <b>Review Candidates:</b> start with Strong Buy, then Buy; each card says <i>why</i> the stock is listed.
-      3. <b>Check the chart</b> before anything: is price near the buy point? is the market context healthy (Signals tab)?
+      2. <b>Review Today:</b> check the market pulse first, then Strong Buy and Buy; each card says <i>why</i> the stock is listed.
+      3. <b>Open the stock</b> before anything: chart, checklist, plan — is price near the buy point?
       4. <b>Place a paper order</b> if the setup convinces you — the ticket suggests the quantity and shows your risk.
       5. <b>Let it run:</b> fills and stop-outs happen automatically; the Journal tells the story.
       6. <b>Review:</b> closed trades → add a note or lesson. That habit is the product.
@@ -86,7 +82,7 @@ const GUIDE: { q: string; a: React.ReactNode }[] = [
   {
     q: "What is position sizing and where do I set it?",
     a: (<>
-      Settings (gear icon) → Equity, Risk % and Max position %. The ticket then suggests
+      Settings (gear icon, top right) → Equity, Risk % and Max position %. The ticket then suggests
       <i> quantity = equity × risk% ÷ (entry − stop)</i>, capped by the max-position rule,
       and shows +2R/+3R targets. The same math the backtest used.
     </>),
@@ -94,7 +90,7 @@ const GUIDE: { q: string; a: React.ReactNode }[] = [
   {
     q: "What are rule profiles?",
     a: (<>
-      Settings → Rule profiles. A profile is a named set of rule parameters (stop %, chase %,
+      Research → Rule profiles. A profile is a named set of rule parameters (stop %, chase %,
       minimum grade, max positions). The <b>active profile</b> changes what the screener shows;
       the Backtest tab can run any profile so you can compare v1 vs v2 on real history before
       trusting either. The trading logic itself is never rewritten.
@@ -103,8 +99,7 @@ const GUIDE: { q: string; a: React.ReactNode }[] = [
   {
     q: "What about fundamentals and news?",
     a: (<>
-      StockEdge scan exports (quarterly) feed the earnings flags — cloud-upload icon on the
-      Candidates page; the 'why' lines mention EPS and quality flags once data is on file.
+      StockEdge scan exports (quarterly) feed the earnings flags — ⋮ menu → Import StockEdge export; the 'why' lines mention EPS and quality flags once data is on file.
       News under the chart comes from reputable business newsrooms only.
     </>),
   },
@@ -126,12 +121,18 @@ const GUIDE: { q: string; a: React.ReactNode }[] = [
   },
 ];
 
-export default function AboutPage() {
+export default function AboutPage({ onBack }: { onBack?: () => void }) {
   const [health, setHealth] = useState<Health | null>(null);
   useEffect(() => { api.health().then(setHealth).catch(() => {}); }, []);
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 2 }}>
+    <Container maxWidth="sm" disableGutters>
+      {onBack && (
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+          <IconButton onClick={onBack} aria-label="back" edge="start"><ArrowBackIcon /></IconButton>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>About & guide</Typography>
+        </Stack>
+      )}
       {/* what this is */}
       <Card variant="outlined" sx={{ mb: 2 }}>
         <CardContent>
@@ -225,12 +226,12 @@ export default function AboutPage() {
               </Stack>
               {health.signal_source === "sepa" && (
                 <Typography variant="caption" color="text.secondary">
-                  {health.signals.status}
+                  {health.signals?.status}
                 </Typography>
               )}
               <Typography variant="caption" color="text.secondary">
-                Daily scan at {health.scheduler.scan_times.join(" + ")} · quote poll every {health.quote_poller.interval_s}s
-                {health.quote_poller.last_poll && <> · last quote poll {health.quote_poller.last_poll}</>}
+                Daily scan at {health.scheduler?.scan_times?.join(" + ") ?? "—"} · quote poll every {health.quote_poller?.interval_s ?? "—"}s
+                {health.quote_poller?.last_poll && <> · last quote poll {health.quote_poller.last_poll}</>}
               </Typography>
             </Stack>
           ) : (

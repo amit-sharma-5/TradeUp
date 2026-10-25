@@ -15,6 +15,7 @@ import threading
 from ..domain import Trade, TradeEvent, TradeStatus, log_event, transition
 from .base import Broker
 
+AUTO_MARKER = "auto (⚡ Buy Now)"   # note prefix identifying machine-placed trades
 CHASE_PCT = 2.0
 
 
@@ -105,11 +106,16 @@ class PaperBroker(Broker):
 
     @_locked
     def set_note(self, trade_id: str, note: str) -> Trade:
-        """Notes & lessons — part of the review loop, no status change."""
+        """Notes & lessons — part of the review loop, no status change.
+        An auto-trade marker is preserved so machine trades stay identifiable."""
         trade = self._store.get_trade(trade_id)
         if trade is None:
             raise KeyError(f"trade {trade_id} not found")
-        trade.note = (note or "").strip()
+        note = (note or "").strip()
+        marker = AUTO_MARKER if (trade.note or "").startswith(AUTO_MARKER) else ""
+        if marker and not note.startswith(AUTO_MARKER):
+            note = f"{marker} | {note}" if note else marker
+        trade.note = note
         self._store.save_trade(trade)
         return trade
 
