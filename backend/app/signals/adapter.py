@@ -80,6 +80,7 @@ class SepaSignalSource(SignalSource):
         self._signals: list[Signal] = []
         self._asof: str = ""
         self._out: dict | None = None         # the raw screener output (all lists)
+        self._feats: dict | None = None       # per-stock feature frames (sectors etc.)
         self._status = "not run yet"    # human-readable last-refresh state
         self._lock = threading.Lock()
         self._refreshing = False
@@ -99,6 +100,11 @@ class SepaSignalSource(SignalSource):
         """(asof, screener output dict) from the last successful scan, or None."""
         with self._lock:
             return (self._asof, self._out) if self._out is not None else None
+
+    def last_feats(self) -> dict | None:
+        """Per-stock feature frames from the last scan (sector aggregates etc.)."""
+        with self._lock:
+            return self._feats
 
     def refresh_async(self):
         """Kick a background refresh (no-op while one is already running)."""
@@ -149,6 +155,7 @@ class SepaSignalSource(SignalSource):
         feats, ev, _ = scan.run_all(p)
         scan.attach_cross(feats, p)
         asof, out = screener.screen(feats, ev, p)
+        self._feats = feats
 
         def chg(sym: str) -> float:
             f = feats.get(sym)

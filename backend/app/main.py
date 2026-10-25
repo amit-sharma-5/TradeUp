@@ -24,6 +24,7 @@ from .symbols import get_symbols
 from .ticket import plan_for
 from .watchlists import from_screen as watchlists_from_screen
 from . import watchlist
+from .sectors import from_feats as sectors_from_feats
 from .symbols import get_symbols
 from .domain import Category, Signal, TradeStatus
 from .jobs.notify import send as notify_send
@@ -323,6 +324,21 @@ def create_app(start_background: bool = True, journal_dir=None,
     @app.delete("/api/watchlist/{symbol}")
     def remove_from_watchlist(symbol: str):
         return {"symbols": watchlist.remove(symbol)}
+
+    @app.get("/api/sectors")
+    def sectors():
+        """NIFTY 500 by industry: median returns (1D…1Y), breadth above 50-DMA,
+        Stage-2 / Trend-Template / setup shares. Computed from the last scan."""
+        if source_name != "sepa":
+            raise HTTPException(503, "sectors need the SEPA engine")
+        feats = signals.last_feats()
+        if feats is None:
+            signals.refresh_async()
+            return {"asof": "", "stale": True, "sectors": []}
+        from sepa.universe import current_nifty500   # engine's cached member list
+        uni = current_nifty500()
+        industry = dict(zip(uni["Symbol"].astype(str), uni["Industry"].astype(str)))
+        return {"asof": signals.status["asof"], "sectors": sectors_from_feats(feats, industry)}
 
     @app.get("/api/settings")
     def get_settings():

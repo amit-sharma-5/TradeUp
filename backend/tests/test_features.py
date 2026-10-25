@@ -78,3 +78,18 @@ def test_news_degrades_gracefully(real_client):
     assert r.status_code == 200
     body = r.json()
     assert isinstance(body, (list, dict))
+
+@skip_no_sepa
+def test_sectors_endpoint(real_client):
+    real_client.app.state.signals.refresh()
+    r = real_client.get("/api/sectors")
+    assert r.status_code == 200
+    rows = r.json()["sectors"]
+    assert len(rows) > 10                          # NIFTY 500 spans many industries
+    row = rows[0]
+    for k in ("industry", "stocks", "1D", "1W", "above50%", "stage2%", "tt%", "setup%"):
+        assert k in row
+    assert all(r["stocks"] >= 1 for r in rows)
+    # sorted by 1D performance, best first
+    one_d = [r["1D"] for r in rows if r["1D"] is not None]
+    assert one_d == sorted(one_d, reverse=True)

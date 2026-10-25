@@ -126,6 +126,7 @@ export const api = {
     return get<TicketPlan>(`/api/ticket/${symbol}?${q}`);
   },
   watchlists: () => get<Watchlists>("/api/watchlists"),
+  sectors: () => get<Sectors>("/api/sectors"),
   news: (symbol: string) => get<NewsItem[] | { error: string }>(`/api/news/${symbol}`),
   journalCsv: () => "/api/journal.csv" as string,
   stockedge: () => get<StockEdgeStatus>("/api/stockedge"),
@@ -183,6 +184,13 @@ export interface Watchlists {
   "Market": Record<string, unknown>[];
 }
 export interface NewsItem { date: string; source: string; title: string; link: string; tags: string; }
+
+export interface SectorRow {
+  industry: string; stocks: number;
+  "1D"?: number; "1W"?: number; "1M"?: number; "3M"?: number; "1Y"?: number;
+  "above50%": number; "stage2%": number; "tt%": number; "setup%": number;
+}
+export interface Sectors { asof: string; stale?: boolean; sectors: SectorRow[]; }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

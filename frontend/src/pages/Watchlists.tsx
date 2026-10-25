@@ -5,11 +5,12 @@ import {
 } from "@mui/material";
 import { api, Watchlists, WatchlistRow } from "../api";
 import MyWatchlist from "./MyWatchlist";
+import SectorsTable from "./SectorsTable";
 
 const fmt = (n: number | null | undefined, d = 1) =>
   n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d });
 
-const TABS = ["Signals", "My Watch", "Uptrend (no base)", "Leaders", "Sell-Avoid", "Earnings x Tech"] as const;
+const TABS = ["Signals", "My Watch", "Uptrend (no base)", "Leaders", "Sell-Avoid", "Earnings x Tech", "Sectors"] as const;
 const LABEL: Record<string, string> = {
   "Uptrend (no base)": "Uptrend",
   "Sell-Avoid": "Sell / Avoid",
@@ -75,6 +76,8 @@ export default function WatchlistsSection({ onChart }: { onChart?: (symbol: stri
         )
       ) : tab === 1 ? (
         <MyWatchlist onChart={onChart} />
+      ) : tab === 6 ? (
+        <SectorsTable />
       ) : (
         <RowsFor tab={TABS[tab]} rows={(wl as unknown as Record<string, WatchlistRow[]>)[TABS[tab]] ?? []} onChart={onChart} />
       )}
