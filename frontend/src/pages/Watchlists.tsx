@@ -76,13 +76,13 @@ export default function WatchlistsSection({ onChart }: { onChart?: (symbol: stri
       ) : tab === 1 ? (
         <MyWatchlist onChart={onChart} />
       ) : (
-        <RowsFor tab={TABS[tab]} rows={(wl as unknown as Record<string, WatchlistRow[]>)[TABS[tab]] ?? []} />
+        <RowsFor tab={TABS[tab]} rows={(wl as unknown as Record<string, WatchlistRow[]>)[TABS[tab]] ?? []} onChart={onChart} />
       )}
     </Box>
   );
 }
 
-function RowsFor({ tab, rows }: { tab: string; rows: WatchlistRow[] }) {
+function RowsFor({ tab, rows, onChart }: { tab: string; rows: WatchlistRow[]; onChart?: (s: string) => void }) {
   if (!rows.length) {
     return (
       <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: "center" }}>
@@ -101,7 +101,7 @@ function RowsFor({ tab, rows }: { tab: string; rows: WatchlistRow[] }) {
           <TableBody>
             {rows.map((r, i) => (
               <Row key={i} cells={[
-                <b key="s">{r.symbol}</b>,
+                <SymCell key="s" symbol={r.symbol} onChart={onChart} />,
                 <span key="c">₹{fmt(r.close)}</span>,
                 <RsChip key="r" rs={r.rs} />,
                 r.tt ? <Chip key="t" size="small" color="success" variant="outlined" label="✓" sx={{ height: 22, minWidth: 30, fontSize: 12 }} />
@@ -122,7 +122,7 @@ function RowsFor({ tab, rows }: { tab: string; rows: WatchlistRow[] }) {
         <TableBody>
           {rows.map((r, i) => (
             <Row key={i} cells={[
-              <b key="s">{r.symbol}</b>,
+              <SymCell key="s" symbol={r.symbol} onChart={onChart} />,
               <span key="c">₹{fmt(r.close)}</span>,
               <RsChip key="r" rs={r.rs} />,
               <StageChip key="g" stage={r.stage} />,
@@ -138,6 +138,19 @@ function RowsFor({ tab, rows }: { tab: string; rows: WatchlistRow[] }) {
 }
 
 /* shared chrome */
+
+function SymCell({ symbol, onChart }: { symbol: string; onChart?: (s: string) => void }) {
+  return (
+    <TableCell>
+      <Typography component="a" onClick={() => onChart?.(symbol)} variant="body2"
+                  sx={{ fontWeight: 700, cursor: onChart ? "pointer" : "default",
+                        color: "primary.main", textDecoration: onChart ? "underline" : "none",
+                        textDecorationStyle: "dotted" }}>
+        {symbol}
+      </Typography>
+    </TableCell>
+  );
+}
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (

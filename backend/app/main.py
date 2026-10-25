@@ -165,15 +165,34 @@ def create_app(start_background: bool = True, journal_dir=None,
 
     @app.get("/api/candidates")
     def candidates():
-        """Strong Buy / Buy / Watch cards. If the SEPA scan has not run yet in this
-        install, kick one off in the background (the first scan is slow)."""
+        """Strong Buy / Buy / Watch cards with the engine's full context (grade,
+        RS, distance from pivot, volume ×, base #) so the UI can show what the
+        terminal shows. If the SEPA scan has not run yet in this install, kick
+        one off in the background (the first scan is slow)."""
         cands: list[Signal] = signals.get_candidates()
+        extras: dict[str, dict] = {}
+        if source_name == "sepa":
+            screen = signals.last_screen()
+            if screen:
+                import math
+                for label, _cat in (("Strong Buy", 0), ("Buy", 0), ("Watch", 0)):
+                    df = screen[1].get(label)
+                    if df is None or not len(df):
+                        continue
+                    for r in df.to_dict("records"):
+                        clean = {k: v for k, v in r.items()
+                                 if v == v and not isinstance(v, (list, dict))}
+                        extras[r["symbol"]] = {k: (float(v) if isinstance(v, float) else v)
+                                               for k, v in clean.items()}
         if source_name == "sepa" and not cands:
             signals.refresh_async()
-        return [{"symbol": s.symbol, "name": s.name, "category": s.category.value,
-                 "ltp": s.ltp, "change_pct": s.change_pct, "pivot": s.pivot,
-                 "buy_zone_low": s.pivot, "buy_zone_high": round(s.pivot * 1.02, 2),
-                 "stop": s.stop, "why": s.why} for s in cands]
+        return [{**{"symbol": s.symbol, "name": s.name, "category": s.category.value,
+                    "ltp": s.ltp, "change_pct": s.change_pct, "pivot": s.pivot,
+                    "buy_zone_low": s.pivot, "buy_zone_high": round(s.pivot * 1.02, 2),
+                    "stop": s.stop, "why": s.why},
+                 **{k: v for k, v in extras.get(s.symbol, {}).items()
+                    if k not in ("symbol", "close", "why", "pivot", "name")}}
+                for s in cands]
 
     @app.post("/api/signals/refresh")
     def refresh_signals():

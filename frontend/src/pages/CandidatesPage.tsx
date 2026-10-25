@@ -118,6 +118,16 @@ export default function CandidatesPage({ tick, onChart }: { tick: number; onChar
                       <Chip size="small" label={`${s.change_pct >= 0 ? "+" : ""}${fmt(s.change_pct)}%`}
                             color={s.change_pct >= 0 ? "success" : "error"} />
                     </Stack>
+                    <Stack direction="row" spacing={0.75} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+                      {s.watch_type && <Chip size="small" color={GROUP_COLOR[g]} label={s.watch_type} />}
+                      {s.rs != null && <Chip size="small" variant="outlined" color={s.rs >= 90 ? "success" : s.rs >= 70 ? "info" : "default"} label={`RS ${Math.round(s.rs)}`} />}
+                      {s.grade && <Chip size="small" variant="outlined" label={s.grade} />}
+                      {s.entry && <Chip size="small" variant="outlined" label={s.entry} />}
+                      {s["above_pivot%"] != null && <Chip size="small" variant="outlined" label={`${s["above_pivot%"] >= 0 ? "+" : ""}${fmt(s["above_pivot%"], 1)}% vs pivot`} />}
+                      {s["to_pivot%"] != null && <Chip size="small" variant="outlined" label={`${fmt(s["to_pivot%"], 1)}% to pivot`} />}
+                      {s.vol_x != null && <Chip size="small" variant="outlined" label={`vol ${fmt(s.vol_x, 1)}×`} />}
+                      {s.base_no != null && <Chip size="small" variant="outlined" label={`base ${Math.round(s.base_no)}`} />}
+                    </Stack>
                     <Typography variant="body2" sx={{ mt: 1 }} color="text.primary">{s.why}</Typography>
                     <Stack direction="row" spacing={1} sx={{ mt: 1.25 }} alignItems="center" flexWrap="wrap" useFlexGap>
                       <Chip size="small" color={GROUP_COLOR[g]} label={`Buy point ₹${fmt(s.pivot)}`} />

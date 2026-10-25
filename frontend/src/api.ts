@@ -9,6 +9,18 @@ export interface Signal {
   buy_zone_high?: number;
   stop: number;
   why: string;
+  // engine context (present when the SEPA screener produced the row)
+  rs?: number;
+  rs_bo?: number;
+  grade?: string;
+  "above_pivot%"?: number;
+  "to_pivot%"?: number;
+  entry?: string;                 // Breakout / Retest re-entry
+  vol_x?: number;
+  base_no?: number;
+  watch_type?: string;            // Buy-ready / Retesting / Resting / …
+  fund?: string;
+  bo_type?: string;
 }
 
 export interface TradeEvent {
