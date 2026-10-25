@@ -117,9 +117,15 @@ class Backtester:
         curve = backtest.portfolio(sepa, max_pos)
         cs = backtest.curve_stats(curve, bench)
 
+        # The honest period: the requested start is only an upper bound — the
+        # test cannot begin before the price store does. Report what was used.
+        first_trade = str(sepa["date"].min())[:10] if len(sepa) else None
+        data_from = str(min(f.index[0] for f in feats.values()).date())
         result = {
             "asof": str(max(f.index[-1] for f in feats.values()).date()),
             "start": start, "profile": profile,
+            "data_from": data_from, "first_trade": first_trade,
+            "start_clipped": bool(first_trade and first_trade[:4] > start[:4]),
             "params": {"stop_pct": p.stop_pct, "chase_pct": p.chase_pct,
                        "max_pos": max_pos, "min_grade": p.min_grade},
             "benchmark_source": bench_src,
@@ -139,11 +145,12 @@ class Backtester:
         result["trades"] = [{k: _j(v) for k, v in row.items()}
                             for row in sepa[[c for c in trades_cols if c in sepa]].to_dict("records")]
         result["id"] = time.strftime("%Y%m%d-%H%M%S")
-        result["label"] = f"{profile or 'default'} · from {start}"
+        result["label"] = f"{profile or 'default'} · {first_trade or start} → {result['asof']}"
         self._save(result)
         with self._lock:
             self._result = result
-            self._status = f"ok: {result['summary'][0].get('trades', '?')} SEPA trades since {start}"
+            self._status = (f"ok: {result['summary'][0].get('trades', '?')} SEPA trades, "
+                            f"{first_trade or start} → {result['asof']}")
         return result
 
     # ── saved runs (compare versions) ──────────────────────────────────────
@@ -167,7 +174,7 @@ class Backtester:
             s0 = (r.get("summary") or [{}])[0]
             pf = r.get("portfolio") or {}
             out.append({"id": r.get("id", f.stem), "label": r.get("label", f.stem),
-                        "profile": r.get("profile"), "start": r.get("start"),
+                        "profile": r.get("profile"), "start": r.get("first_trade") or r.get("start"),
                         "params": r.get("params"), "asof": r.get("asof"),
                         "trades": s0.get("trades"), "win%": s0.get("win%"),
                         "expectancy%": s0.get("expectancy%"),

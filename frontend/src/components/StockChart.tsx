@@ -101,15 +101,16 @@ export default function StockChart({ symbol }: { symbol: string }) {
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+      <Stack direction="row" alignItems="center" spacing={1}>
         {toggle}
-        <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }} noWrap>
-          {legend} · dashed: pivot / stop · ▲ breakouts
-        </Typography>
+        <Box flexGrow={1} />
         <Tooltip title="Full screen">
           <IconButton size="small" onClick={() => setFull(true)} aria-label="full screen"><FullscreenIcon /></IconButton>
         </Tooltip>
       </Stack>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", my: 0.75 }}>
+        {legend} · dashed lines: pivot / stop · ▲ breakouts
+      </Typography>
       {err ? <ErrorNote error={err} /> : panels(tf === "both" ? 260 : 360)}
 
       <Dialog fullScreen open={full} onClose={() => setFull(false)}>

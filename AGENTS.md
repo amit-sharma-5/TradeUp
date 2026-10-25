@@ -17,8 +17,8 @@ Working end-to-end with real signals, verified:
   Endpoints: `/api/health`, `/api/candidates`, `POST /api/orders`,
   `POST /api/orders/{id}/cancel`, `/api/journal`, `POST /api/signals/refresh`,
   `POST /api/signals/run-daily-job`. Daily scheduler thread (17:30 default).
-- `frontend/` — Vite + React + TypeScript (strict) + **MUI**, Groww-style green accent, mobile-first (bottom nav), 3 pages: Candidates (cards with plain-English "why") → Trade ticket → Journal with event timelines. `npm run dev` proxies `/api` → :8000.
-- CI: pytest + frontend build (`.github/workflows/ci.yml`). Tests: 45 pytest in `backend/tests/`.
+- `frontend/` — Vite + React + TypeScript (strict) + **MUI**, mobile-first. Tabs: Today · Markets · Portfolio · Research · Search; overlays: Stock page, Trade ticket, Settings, Data, About. Served by the backend from `frontend/dist` (one process); `npm run dev` for hot reload.
+- CI: pytest + frontend build (`.github/workflows/ci.yml`). Tests: 125 pytest in `backend/tests/`.
 
 ## Non-negotiables
 
@@ -81,8 +81,8 @@ Working end-to-end with real signals, verified:
    - `backtester.py` + `POST /api/backtest` / `GET /api/backtest`: runs the imported
      SEPA backtester (SEPA-filtered vs all-breakouts baseline, grade/type/base/reason
      breakdowns, portfolio equity curve) in a background thread. `BacktestPage.tsx`
-     with run button + polling. Full run ~10 s warm (1,207 trades since 2012,
-     41.6% CAGR / −18.5% max DD on the owner's data). Tests skip without SEPA (CI).
+     with run button + polling. Full run ~10 s warm (1,207 trades 2020-01 → 2026-10 —
+     the price store starts 2019, so earlier start dates are clipped; 41.4% CAGR / −18.5% max DD). Tests skip without SEPA (CI).
 8. ~~Feature parity batch 1~~ **Done (2026-10-22):**
    - Stock search: `/api/symbols` (NIFTY 500 + names) + search mode on the
      Chart tab; `Paper trade` from any chart (orders accept any symbol in the
@@ -119,9 +119,32 @@ Working end-to-end with real signals, verified:
    Excel workbook export, richer chart annotations
    (RS line, stage shading, weekly), golden signal snapshot test.
 
+12. ~~Production-readiness review (2026-10-25)~~ **Done:**
+   - Fixed: chart breakout markers never drew (analyze_symbol returns a list
+     of dicts), journal writes raced across threads (store + broker locks),
+     auto paper re-fired on manual rescans, CORS was '*', backend/.env was
+     never loaded, unbounded upload read, auto-trade marker lost on note edit,
+     backtest silently clipped start dates (now reported).
+   - Auth: login throttling, Secure cookie behind HTTPS, /api/logout,
+     /api/session, health reveals nothing when locked.
+   - New (SEPA parity without Dhan): /api/stock (status, Trend Template
+     checklist, plan, breakouts & violations, fundamentals, my trades),
+     /api/holdings (engine position_actions), /api/journal/stats (TTLC),
+     saved backtest runs + trades CSV, 5Y sectors with members, /api/data.
+   - UI rebuilt around tasks: Today · Markets · Portfolio · Research · Search
+     tabs, Stock page reachable from every list, Settings as a full page (⚙
+     in the app bar), ⋮ menu for Data/StockEdge/About/Sign out. Shared
+     ui.tsx; strict TS with noUnused*. Reviewed by screenshotting every page
+     headless at phone + desktop widths (no runtime errors).
+   - README comparison corrected: QuantConnect and Streak already do
+     rule-based backtesting + paper trading; TradeUp's difference is the
+     specific SEPA method, the review loop, and local ownership.
+13. Left: Dhan WebSocket + live intraday scanner (token), server deployment,
+   multi-user later, Excel workbook export, golden snapshot test.
+
 ## Conventions
 
 - Python 3.11, pandas 2.x (not 3.x). Backend stdlib-style: small modules, docstrings explaining "why".
-- Frontend: strict TypeScript, functional components, one component per screen in `src/pages/`, shared fetch logic only in `src/api.ts`, types only in `src/types.ts` (mirror of backend domain model).
+- Frontend: strict TypeScript (noUnusedLocals/Parameters), functional components, one screen per file in `src/pages/`, all network calls + types in `src/api.ts`, shared presentational pieces in `src/ui.tsx`.
 - Commits: short imperative subject; body explains the why.
 - UI language: plain English, every screen self-explanatory to a new trader (see docs/TRADING-GUIDE.md).

@@ -196,6 +196,7 @@ export interface BacktestStats {
 export interface BacktestResult {
   id?: string; label?: string; profile?: string | null;
   asof: string; start: string;
+  data_from?: string; first_trade?: string | null; start_clipped?: boolean;
   params: { stop_pct: number; chase_pct: number; max_pos: number; min_grade: string };
   benchmark_source: string; stocks: number; breakouts: number;
   summary: (BacktestStats & { set: string })[];

@@ -8,11 +8,8 @@ __pycache__/
 node_modules/
 dist/
 
-# Data (local state, never in git)
-data/prices/
-data/journal/
-data/cache/
-data/logs/
+# Data (local state, never in git): journal, backtest runs, settings, profiles…
+data/
 
 # IDE / OS
 .idea/

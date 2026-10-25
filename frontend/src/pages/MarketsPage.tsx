@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Autocomplete, Box, Chip, IconButton, Stack, Tab, Tabs, TextField, ToggleButton,
+  Autocomplete, Box, IconButton, Stack, Tab, Tabs, TextField, ToggleButton,
   ToggleButtonGroup, Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
@@ -199,9 +199,10 @@ function MyWatch({ tick, onStock }: { tick: number; onStock: (s: string) => void
         <DataTable rows={rows} rowKey={(r) => r.symbol} onRowClick={(r) => onStock(r.symbol)} cols={[
           { key: "s", label: "Stock", render: (r) => <Box><b>{r.symbol}</b>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block" }} noWrap>{r.name}</Typography></Box> },
-          { key: "l", label: "Price", render: (r) => `₹${fmt(r.ltp)}` },
-          { key: "c", label: "Change", render: (r) => <Chip size="small" variant="outlined"
-              color={(r.change_pct ?? 0) >= 0 ? "success" : "error"} label={fmtPct(r.change_pct, 2)} sx={{ height: 22 }} /> },
+          { key: "l", label: "Price", render: (r) => <Box>
+              <Box sx={{ fontWeight: 700 }}>₹{fmt(r.ltp)}</Box>
+              <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: tone(r.change_pct) }}>{fmtPct(r.change_pct, 2)}</Box>
+            </Box> },
           { key: "x", label: "", align: "right", width: 44, render: (r) => (
               <IconButton size="small" aria-label={`remove ${r.symbol}`}
                           onClick={(e) => { e.stopPropagation(); api.removeWatch(r.symbol).then(load); }}>

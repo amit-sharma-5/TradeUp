@@ -33,7 +33,7 @@ export default function ResearchPage({ onStock }: { onStock: (s: string) => void
 function Backtest({ onStock }: { onStock: (s: string) => void }) {
   const [profiles, setProfiles] = useState<RuleProfile[]>([]);
   const [profile, setProfile] = useState("default");
-  const [start, setStart] = useState("2012-01-01");
+  const [start, setStart] = useState("2019-01-01");
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("");
@@ -93,9 +93,15 @@ function Backtest({ onStock }: { onStock: (s: string) => void }) {
       {running && !result && <Loading />}
 
       {result && sepa && pf && <>
-        <SectionTitle right={<Typography variant="caption" color="text.secondary">
-          {result.label ?? result.profile ?? "default"} · data to {result.asof}
-        </Typography>}>Portfolio result</SectionTitle>
+        <SectionTitle>Portfolio result</SectionTitle>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: -0.5, mb: 1 }}>
+          Profile <b>{result.profile ?? "default"}</b> · tested {result.first_trade ?? result.start} → {result.asof}
+        </Typography>
+        {result.start_clipped && (
+          <Typography variant="body2" color="warning.main" sx={{ mb: 1 }}>
+            You asked for {result.start}, but the price data only starts {result.data_from} — results cover the shorter period.
+          </Typography>
+        )}
         <StatStrip>
           <Stat label="CAGR" value={fmtPct(pf["CAGR%"])} color="success.main" />
           <Stat label="Max drawdown" value={fmtPct(pf["max DD%"])} color="error.main" />
@@ -107,7 +113,7 @@ function Backtest({ onStock }: { onStock: (s: string) => void }) {
         <Box sx={{ mt: 1 }}><Curve result={result} /></Box>
         <Typography variant="caption" color="text.secondary">
           {result.params.max_pos} positions max · stop {result.params.stop_pct}% · chase {result.params.chase_pct}%
-          {result.params.min_grade ? ` · grade ≥ ${result.params.min_grade}` : ""} · {result.stocks} stocks · {result.breakouts} breakouts since {result.start}
+          {result.params.min_grade ? ` · grade ≥ ${result.params.min_grade}` : ""} · {result.stocks} stocks · {result.breakouts} breakouts
         </Typography>
 
         <SectionTitle>Per-trade statistics</SectionTitle>
@@ -198,7 +204,7 @@ function Runs({ onOpen }: { onOpen: () => void }) {
       <DataTable rowKey={(r) => r.id} rows={runs}
                  onRowClick={(r) => api.loadBacktestRun(r.id).then(onOpen)} cols={[
         { key: "l", label: "Run", render: (r) => <Box><b>{r.profile ?? "default"}</b>
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>from {r.start} · {r.id.slice(0, 8)}</Typography></Box> },
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{r.start} → {r.asof}</Typography></Box> },
         { key: "p", label: "Stop / chase", render: (r) => `${r.params?.stop_pct}% / ${r.params?.chase_pct}%` },
         { key: "n", label: "Trades", render: (r) => r.trades },
         { key: "w", label: "Win %", render: (r) => `${fmt(r["win%"], 1)}%` },

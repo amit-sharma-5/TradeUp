@@ -23,6 +23,9 @@ const theme = createTheme({
   components: {
     MuiCard: { styleOverrides: { root: { borderRadius: 14 } } },
     MuiChip: { styleOverrides: { root: { fontWeight: 600 } } },
+    MuiButton: { styleOverrides: { root: { textTransform: "none", fontWeight: 700, whiteSpace: "nowrap" } } },
+    MuiToggleButton: { styleOverrides: { root: { textTransform: "none", fontWeight: 600, whiteSpace: "nowrap" } } },
+    MuiTab: { styleOverrides: { root: { textTransform: "none", fontWeight: 700 } } },
   },
 });
 

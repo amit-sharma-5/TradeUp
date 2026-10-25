@@ -61,7 +61,7 @@ export default function StockPage({ symbol, onBack, onTrade, tick }: {
         <Tooltip title={watched ? "Remove from My Watch" : "Add to My Watch"}>
           <IconButton onClick={toggleWatch} aria-label="watch">{watched ? <StarIcon color="secondary" /> : <StarBorderIcon />}</IconButton>
         </Tooltip>
-        <Button variant="contained" onClick={trade} disabled={!s?.close}>Paper trade</Button>
+        <Button variant="contained" size="small" onClick={trade} disabled={!s?.close}>Trade</Button>
       </Stack>
 
       {err && <ErrorNote error={err} />}
@@ -84,10 +84,13 @@ export default function StockPage({ symbol, onBack, onTrade, tick }: {
         </SectionTitle>
         <Card variant="outlined"><CardContent sx={{ py: 1, "&:last-child": { pb: 1 } }}>
           {d.checklist.map((c) => (
-            <Stack key={c.rule} direction="row" spacing={1} alignItems="center" sx={{ py: 0.5 }}>
-              {c.ok ? <CheckCircleIcon color="success" fontSize="small" /> : <CancelIcon color="error" fontSize="small" />}
-              <Typography variant="body2" sx={{ flexGrow: 1 }}>{c.rule}</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>{c.detail}</Typography>
+            <Stack key={c.rule} direction="row" spacing={1} alignItems="flex-start" sx={{ py: 0.6 }}>
+              {c.ok ? <CheckCircleIcon color="success" fontSize="small" sx={{ mt: 0.1 }} />
+                    : <CancelIcon color="error" fontSize="small" sx={{ mt: 0.1 }} />}
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: c.ok ? 400 : 700 }}>{c.rule}</Typography>
+                <Typography variant="caption" color="text.secondary">{c.detail}</Typography>
+              </Box>
             </Stack>
           ))}
         </CardContent></Card>

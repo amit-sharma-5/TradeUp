@@ -33,11 +33,12 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 /** Section label used inside pages. */
 export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
-    <Stack direction="row" alignItems="center" sx={{ mt: 3, mb: 1 }}>
-      <Typography variant="overline" sx={{ fontWeight: 800, color: "text.secondary", flexGrow: 1, letterSpacing: ".08em" }}>
+    <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 3, mb: 1 }}>
+      <Typography variant="overline" noWrap
+                  sx={{ fontWeight: 800, color: "text.secondary", flexGrow: 1, letterSpacing: ".08em", lineHeight: 1.6 }}>
         {children}
       </Typography>
-      {right}
+      {right && <Box sx={{ flexShrink: 0 }}>{right}</Box>}
     </Stack>
   );
 }
